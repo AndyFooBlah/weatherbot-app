@@ -1,0 +1,55 @@
+// Copyright 2026 Andrew Brook
+// Licensed under the Apache License, Version 2.0
+//
+// VoiceCommon-compatible rules for weatherbot-app.
+//
+// Top-level collection layout (matches useSession's default `sessionsCollection`):
+//   users/{uid}                                 — user profile (VoiceCommon writes)
+//   sessions/{sessionId}                        — session document (must carry userId field)
+//   sessions/{sessionId}/transcript/{messageId} — turn-by-turn transcript
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isAuth() && request.auth.uid == uid;
+    }
+
+    // ---- users ----
+    match /users/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // ---- allow-list ----
+    // Only the Cloud Functions runtime (admin SDK) reads or writes this
+    // collection. Browsers must not be able to enumerate or modify it.
+    match /allowed_emails/{email} {
+      allow read, write: if false;
+    }
+
+    // ---- sessions ----
+    match /sessions/{sessionId} {
+      // Read your own sessions. Create only if you set userId to your uid.
+      allow read: if isAuth() && resource.data.userId == request.auth.uid;
+      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
+      // Updates: must remain owned by you; userId cannot change.
+      allow update: if isAuth()
+                    && resource.data.userId == request.auth.uid
+                    && request.resource.data.userId == request.auth.uid;
+      allow delete: if isAuth() && resource.data.userId == request.auth.uid;
+
+      // Transcript subcollection.
+      match /transcript/{messageId} {
+        allow read, write: if isAuth()
+                           && get(/databases/$(database)/documents/sessions/$(sessionId)).data.userId
+                              == request.auth.uid;
+      }
+    }
+  }
+}

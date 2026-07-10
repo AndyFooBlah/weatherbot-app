@@ -1,0 +1,15 @@
+// Copyright 2026 Andrew Brook
+// Licensed under the Apache License, Version 2.0
+//
+// VoiceCommon archives mixed user+bot audio to sessions/{userId}/{sessionId}.webm
+// per the framework default. Only the owning user can read/write their own audio.
+
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /sessions/{userId}/{sessionId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
