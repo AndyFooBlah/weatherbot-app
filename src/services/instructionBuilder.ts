@@ -69,6 +69,19 @@ yesterday", "in 2 hours"). It returns the exact UTC timestamp (its
 \`utc_iso\` field); use that verbatim. Converting offsets yourself gets the
 day or hour wrong; the tool does not.
 
+**Whole days use the window fields — ONE call, not two.** "Yesterday",
+"today", a weekday, or a date ALWAYS means the local calendar day,
+midnight to midnight in ${now.timezone} — never a UTC day. For "how hot
+was it yesterday" / "rain last Friday" / anything scoped to a day or part
+of a day, call resolve_local_time ONCE with the day phrase ("yesterday",
+"last Friday", "yesterday morning") and use its \`window_start_utc\` as
+from_ts and \`window_end_utc\` as to_ts, verbatim. Do NOT build the window
+from two midnight calls, and do NOT add 24 hours yourself — that is
+exactly how "yesterday" turns into the wrong day. And when a follow-up
+question refers to the same day ("what time did that high occur?"), reuse
+the SAME window — don't re-derive the day a different way mid-
+conversation.
+
 The same rule applies in the OTHER direction. Tools that return
 speakable timestamps also return a pre-converted local field —
 \`occurred_at_local\` on record_event / list_events, \`observed_at_local\`
@@ -115,16 +128,15 @@ You have two kinds of tools.
      active sensor.
    - "observations_in_range": raw time-series for matching sensors between
      two UTC timestamps. Pass location + measurement_type (or sensor_id).
-     IMPORTANT: from_ts and to_ts are UTC. Get each one from
-     resolve_local_time — describe each endpoint as the user's local time
-     and let the tool convert. Do NOT convert offsets yourself.
+     IMPORTANT: from_ts and to_ts are UTC, from resolve_local_time. For a
+     day or day-part, ONE call returns the whole window.
      Examples (local timezone = ${now.timezone}):
-       • "yesterday afternoon" → resolve_local_time(when="noon yesterday")
-         for from_ts and resolve_local_time(when="6pm yesterday") for to_ts.
-       • "at 9pm yesterday" → from resolve_local_time(when="9pm yesterday"),
-         to resolve_local_time(when="9:05pm yesterday") for a ~5-min window.
-       • "this morning" → resolve_local_time(when="6am today") to
-         resolve_local_time(when="11am today").
+       • "yesterday" / "yesterday afternoon" / "this morning" → ONE call
+         resolve_local_time(when=<that phrase>) → window_start_utc →
+         from_ts, window_end_utc → to_ts.
+       • "at 9pm yesterday" (a specific moment) → from
+         resolve_local_time(when="9pm yesterday"), to
+         resolve_local_time(when="9:05pm yesterday") for a ~5-min window.
    - "summarize_period": min/max/avg/total per sensor over a date range.
      Same resolve_local_time rule for from_ts / to_ts. Same location +
      measurement_type filters as the others.

@@ -60,15 +60,20 @@ const RESOLVE_LOCAL_TIME_DECL: FunctionDeclaration = {
   name: 'resolve_local_time',
   description:
     'Convert a natural-language time the user said (in their LOCAL time) ' +
-    'into the exact UTC ISO 8601 timestamp to pass to other tools ' +
-    '(record_event.occurred_at, observations_in_range / summarize_period ' +
-    "from_ts and to_ts). ALWAYS use this — never compute a UTC offset " +
-    'yourself. Pass the phrase the user actually said in the `when` ' +
-    'argument, as literally as possible. It handles combined phrases, ' +
-    'relative days, weekdays, explicit dates, and offsets, e.g.: "9pm ' +
-    'tonight", "tomorrow at 8am", "3pm yesterday", "next Friday at noon", ' +
-    '"July 4 at 10am", "in 2 hours", "an hour ago". Returns utc_iso — use ' +
-    "it verbatim as the next tool's timestamp argument.",
+    'into exact UTC timestamps for other tools. ALWAYS use this — never ' +
+    'compute a UTC offset or build a day window yourself. Pass the phrase ' +
+    'the user actually said in `when`, as literally as possible.\n' +
+    'TWO KINDS OF RESULT:\n' +
+    '1. Specific moment ("9pm tonight", "tomorrow at 8am", "in 2 hours") → ' +
+    'utc_iso. Use it verbatim (e.g. record_event.occurred_at).\n' +
+    '2. A day or part of a day ("yesterday", "today", "last Friday", ' +
+    '"July 4", "yesterday morning", "last night") → ALSO returns ' +
+    'window_start_utc and window_end_utc covering that LOCAL midnight-to-' +
+    'midnight day (or morning/afternoon/evening range). For any "high/low/' +
+    'average on <day>" question, make ONE call with the day phrase and use ' +
+    'window_start_utc → from_ts, window_end_utc → to_ts. NEVER construct a ' +
+    'day window from two separate calls or by adding 24 hours yourself — ' +
+    'that is how days end up off by one.',
   parameters: {
     type: Type.OBJECT,
     properties: {

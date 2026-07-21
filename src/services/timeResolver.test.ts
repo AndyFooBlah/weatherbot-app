@@ -189,3 +189,72 @@ describe('resolveTime — defaults & edges', () => {
     expect(() => resolveTime('sometime nextish', opts)).toThrow();
   });
 });
+
+describe('regression: phrases the agent actually said (2026-07-20 session log)', () => {
+  // These four FAILED in production and forced the model to improvise
+  // windows (producing an off-by-one "yesterday"). All must parse now.
+  it('"yesterday morning" → yesterday 06:00–12:00 window', () => {
+    const r = resolveTime('yesterday morning', opts);
+    expect(r.window_start_utc).toBe('2026-07-19T13:00:00Z'); // 6am PDT
+    expect(r.window_end_utc).toBe('2026-07-19T19:00:00Z'); // noon PDT
+  });
+  it('"yesterday night" → yesterday 18:00–24:00 window', () => {
+    const r = resolveTime('yesterday night', opts);
+    expect(r.window_start_utc).toBe('2026-07-20T01:00:00Z'); // 6pm PDT Jul 19
+    expect(r.window_end_utc).toBe('2026-07-20T07:00:00Z'); // midnight
+  });
+  it('"2026-07-19 00:00:00" (seconds) → exact instant', () => {
+    expect(resolveTime('2026-07-19 00:00:00', opts).utc_iso).toBe(
+      '2026-07-19T07:00:00Z',
+    );
+  });
+  it('"midnight Monday July 20 2026" (leading weekday) → exact instant', () => {
+    expect(resolveTime('midnight Monday July 20 2026', opts).utc_iso).toBe(
+      '2026-07-20T07:00:00Z',
+    );
+  });
+});
+
+describe('day windows — the from_ts/to_ts fix', () => {
+  it('"yesterday" → full local day window (midnight→midnight PDT)', () => {
+    const r = resolveTime('yesterday', opts);
+    expect(r.window_start_utc).toBe('2026-07-19T07:00:00Z');
+    expect(r.window_end_utc).toBe('2026-07-20T07:00:00Z');
+    expect(r.window_label).toContain('full day');
+  });
+  it('"today" → full local day window', () => {
+    const r = resolveTime('today', opts);
+    expect(r.window_start_utc).toBe('2026-07-20T07:00:00Z');
+    expect(r.window_end_utc).toBe('2026-07-21T07:00:00Z');
+  });
+  it('"july 4" → that local day window', () => {
+    const r = resolveTime('july 4', opts);
+    expect(r.window_start_utc).toBe('2026-07-04T07:00:00Z');
+    expect(r.window_end_utc).toBe('2026-07-05T07:00:00Z');
+  });
+  it('"last friday" → that local day window', () => {
+    const r = resolveTime('last friday', opts);
+    expect(r.window_start_utc).toBe('2026-07-17T07:00:00Z');
+    expect(r.window_end_utc).toBe('2026-07-18T07:00:00Z');
+  });
+  it('"tomorrow afternoon" → 12:00–18:00 local window', () => {
+    const r = resolveTime('tomorrow afternoon', opts);
+    expect(r.window_start_utc).toBe('2026-07-21T19:00:00Z');
+    expect(r.window_end_utc).toBe('2026-07-22T01:00:00Z');
+  });
+  it('"last night" → yesterday evening window', () => {
+    const r = resolveTime('last night', opts);
+    expect(r.window_start_utc).toBe('2026-07-20T01:00:00Z');
+    expect(r.window_end_utc).toBe('2026-07-20T07:00:00Z');
+  });
+  it('point-in-time inputs have NO window fields', () => {
+    const r = resolveTime('tomorrow at 8am', opts);
+    expect(r.window_start_utc).toBeUndefined();
+    expect(r.utc_iso).toBe('2026-07-21T15:00:00Z');
+  });
+  it('winter day window is UTC-8 (DST)', () => {
+    const r = resolveTime('2026-01-15', opts);
+    expect(r.window_start_utc).toBe('2026-01-15T08:00:00Z');
+    expect(r.window_end_utc).toBe('2026-01-16T08:00:00Z');
+  });
+});
