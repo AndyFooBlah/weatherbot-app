@@ -59,30 +59,27 @@ export const CHARTABLE_TOOLS = new Set<string>([
 const RESOLVE_LOCAL_TIME_DECL: FunctionDeclaration = {
   name: 'resolve_local_time',
   description:
-    'Convert a LOCAL wall-clock date + time into the exact UTC ISO 8601 ' +
-    'timestamp to pass to other tools (record_event.occurred_at, ' +
-    'observations_in_range / summarize_period from_ts and to_ts). ALWAYS ' +
-    'use this to turn something the user said in local time into a UTC ' +
-    'timestamp — never compute the UTC offset yourself. Decide only the ' +
-    'local wall-clock: a 24-hour time and a date (usually just today, ' +
-    'tomorrow, or yesterday). Examples: "9pm tonight" → local_date="today", ' +
-    'local_time="21:00"; "6am tomorrow" → "tomorrow","06:00"; "2:30pm ' +
-    'yesterday" → "yesterday","14:30"; "10am on July 4" → "2026-07-04",' +
-    '"10:00". Returns utc_iso — use it verbatim as the next tool’s timestamp.',
+    'Convert a natural-language time the user said (in their LOCAL time) ' +
+    'into the exact UTC ISO 8601 timestamp to pass to other tools ' +
+    '(record_event.occurred_at, observations_in_range / summarize_period ' +
+    "from_ts and to_ts). ALWAYS use this — never compute a UTC offset " +
+    'yourself. Pass the phrase the user actually said in the `when` ' +
+    'argument, as literally as possible. It handles combined phrases, ' +
+    'relative days, weekdays, explicit dates, and offsets, e.g.: "9pm ' +
+    'tonight", "tomorrow at 8am", "3pm yesterday", "next Friday at noon", ' +
+    '"July 4 at 10am", "in 2 hours", "an hour ago". Returns utc_iso — use ' +
+    "it verbatim as the next tool's timestamp argument.",
   parameters: {
     type: Type.OBJECT,
     properties: {
-      local_date: {
+      when: {
         type: Type.STRING,
         description:
-          'YYYY-MM-DD (local) OR one of: today, tomorrow, yesterday.',
-      },
-      local_time: {
-        type: Type.STRING,
-        description: '24-hour local time HH:MM (e.g. 21:00 for 9pm, 06:00 for 6am).',
+          'The time expression the user said, in their local time, e.g. ' +
+          '"tomorrow at 8am", "9pm tonight", "3pm yesterday", "in 2 hours".',
       },
     },
-    required: ['local_date', 'local_time'],
+    required: ['when'],
   },
   // Blocking (default): its result feeds the very next tool call, so the
   // model should wait for utc_iso before proceeding.

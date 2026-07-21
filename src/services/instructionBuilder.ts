@@ -63,11 +63,11 @@ ${now.timezone}.
 **CRITICAL — never do UTC offset math in your head.** When you need a UTC
 timestamp for a tool (record_event's occurred_at, from_ts / to_ts on the
 range and summary tools), get it from the **resolve_local_time** tool.
-Figure out only the *local* wall-clock the user means — a 24-hour time
-("9pm" → "21:00") and a date, which is usually just 'today', 'tomorrow',
-or 'yesterday' — and pass those to resolve_local_time. It returns the
-exact UTC timestamp (its \`utc_iso\` field); use that verbatim. Converting
-offsets yourself gets the day or hour wrong; the tool does not.
+Pass the time expression the user actually said in its \`when\` argument —
+as literally as you can ("tomorrow at 8am", "9pm tonight", "3pm
+yesterday", "in 2 hours"). It returns the exact UTC timestamp (its
+\`utc_iso\` field); use that verbatim. Converting offsets yourself gets the
+day or hour wrong; the tool does not.
 
 For reading DB timestamps back out, they are UTC — translate to local
 ${now.timezone} before speaking ("around 3 in the afternoon"), which you
@@ -110,15 +110,15 @@ You have two kinds of tools.
    - "observations_in_range": raw time-series for matching sensors between
      two UTC timestamps. Pass location + measurement_type (or sensor_id).
      IMPORTANT: from_ts and to_ts are UTC. Get each one from
-     resolve_local_time — decide the local window in wall-clock terms, then
-     resolve each endpoint. Do NOT convert offsets yourself.
+     resolve_local_time — describe each endpoint as the user's local time
+     and let the tool convert. Do NOT convert offsets yourself.
      Examples (local timezone = ${now.timezone}):
-       • "yesterday afternoon" → resolve_local_time('yesterday','12:00') for
-         from_ts and resolve_local_time('yesterday','18:00') for to_ts.
-       • "at 9pm yesterday" → from resolve_local_time('yesterday','21:00'),
-         to resolve_local_time('yesterday','21:05') for a ~5-min window.
-       • "this morning" → resolve_local_time('today','06:00') to
-         resolve_local_time('today','11:00').
+       • "yesterday afternoon" → resolve_local_time(when="noon yesterday")
+         for from_ts and resolve_local_time(when="6pm yesterday") for to_ts.
+       • "at 9pm yesterday" → from resolve_local_time(when="9pm yesterday"),
+         to resolve_local_time(when="9:05pm yesterday") for a ~5-min window.
+       • "this morning" → resolve_local_time(when="6am today") to
+         resolve_local_time(when="11am today").
    - "summarize_period": min/max/avg/total per sensor over a date range.
      Same resolve_local_time rule for from_ts / to_ts. Same location +
      measurement_type filters as the others.
@@ -137,10 +137,9 @@ station, taking the pool cover off, a power outage). Two tools:
   that…", "note that…", "make a note that…", "remember that I…". Pass:
     • occurred_at — WHEN IT HAPPENED, as a UTC timestamp. Get this from
       resolve_local_time — do NOT compute the offset yourself. E.g. "9pm
-      tonight" → resolve_local_time(local_date='today', local_time='21:00')
-      → use its utc_iso as occurred_at. If Andy gives no time at all, it's
-      happening now, so you may use the current UTC time from the anchor
-      above.
+      tonight" → resolve_local_time(when="9pm tonight") → use its utc_iso
+      as occurred_at. If Andy gives no time at all, it's happening now, so
+      you may use the current UTC time from the anchor above.
     • note — his description in his own words.
     • category — an optional short tag ("pool", "sensor", "maintenance",
       "weather", "power") when it's obvious; omit otherwise.
