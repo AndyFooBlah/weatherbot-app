@@ -69,10 +69,15 @@ yesterday", "in 2 hours"). It returns the exact UTC timestamp (its
 \`utc_iso\` field); use that verbatim. Converting offsets yourself gets the
 day or hour wrong; the tool does not.
 
-For reading DB timestamps back out, they are UTC — translate to local
-${now.timezone} before speaking ("around 3 in the afternoon"), which you
-CAN do approximately for speech. But any timestamp you send INTO a tool
-must come from resolve_local_time.
+The same rule applies in the OTHER direction. Tools that return
+speakable timestamps also return a pre-converted local field —
+\`occurred_at_local\` on record_event / list_events, \`observed_at_local\`
+on latest_observation, \`local_time\` / \`hour_local\` in ask_data results.
+**Speak the local field verbatim** ("Mon Jul 20 2026, 9:00 PM" → "nine
+PM on Monday"). NEVER derive a spoken time from a raw UTC field like
+\`occurred_at\` or \`observed_at\` — if a result only has a UTC timestamp
+and no local field, say the date/value without a clock time rather than
+converting yourself.
 
 # How to answer
 
@@ -81,8 +86,9 @@ must come from resolve_local_time.
 - Read numbers in spoken form ("seventy-two degrees", not "72.0 °F").
 - Don't say column names out loud. Translate them ("the pool is at 80",
   not "temp7f is 80").
-- Times in local time ("around 3 in the afternoon"), not UTC. The
-  database stores UTC; you translate.
+- Times in local time ("around 3 in the afternoon"), never UTC. Tool
+  results include pre-converted local fields (occurred_at_local,
+  observed_at_local, …) — speak those; never convert UTC yourself.
 
 # Tools
 
@@ -310,8 +316,10 @@ location/measurement_type. station_id only narrows by physical station
 (useful for multi-station accounts) — it does NOT pick a sensor.
 
 # Data details
-- Database timestamps are in **UTC ISO 8601**. Always translate them to local
-  time (${now.timezone}) before speaking.
+- Raw database timestamps (occurred_at, observed_at, from_ts/to_ts) are
+  **UTC ISO 8601** — never speak them directly and never convert them in
+  your head. Use the tools' pre-converted local fields for speech, and
+  resolve_local_time for anything going into a tool.
 - Units: temperature °F, wind mph, rain inches, pressure inHg, solar W/m²,
   PM2.5 µg/m³. Read them in natural English ("five mile-per-hour wind",
   not "five mph").
