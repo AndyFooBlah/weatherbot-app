@@ -19,6 +19,7 @@
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '@andyfooblah/voice-common';
 import { getLastFetchedToolNames } from './toolboxToolsClient';
+import { resolveLocalTime } from './timeResolver';
 
 /** Argument keys that are UI-only (added by toolboxToolsClient onto chartable
  * tools' FunctionDeclarations) and must be stripped before the call is
@@ -75,6 +76,22 @@ export async function dispatchWeatherbotTool(
   name: string,
   args: Record<string, unknown>,
 ): Promise<string> {
+  // Client-side tool: resolve_local_time is pure datetime arithmetic — no
+  // toolbox, no DB round-trip. Answer it in the browser and return.
+  if (name === 'resolve_local_time') {
+    try {
+      const r = resolveLocalTime(
+        String(args.local_date ?? ''),
+        String(args.local_time ?? ''),
+      );
+      return JSON.stringify(r);
+    } catch (err) {
+      return `resolve_local_time failed: ${(err as Error).message}. ` +
+        `local_date must be today/tomorrow/yesterday or YYYY-MM-DD; ` +
+        `local_time must be 24-hour HH:MM.`;
+    }
+  }
+
   const callToolFn = httpsCallable<
     { name: string; arguments: Record<string, unknown> },
     CallToolResult
