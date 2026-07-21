@@ -19,7 +19,7 @@
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '@andyfooblah/voice-common';
 import { getLastFetchedToolNames } from './toolboxToolsClient';
-import { resolveTime } from './timeResolver';
+import { describeTimeTool, resolveTimeTool } from './nl2timeTools';
 
 /** Argument keys that are UI-only (added by toolboxToolsClient onto chartable
  * tools' FunctionDeclarations) and must be stripped before the call is
@@ -76,15 +76,25 @@ export async function dispatchWeatherbotTool(
   name: string,
   args: Record<string, unknown>,
 ): Promise<string> {
-  // Client-side tool: resolve_local_time is pure datetime arithmetic — no
-  // toolbox, no DB round-trip. Answer it in the browser and return.
-  if (name === 'resolve_local_time') {
+  // Client-side nl2time tools: pure deterministic datetime work — no
+  // toolbox, no DB round-trip. Answer in the browser and return.
+  if (name === 'resolve_time') {
     try {
-      const r = resolveTime(String(args.when ?? ''));
-      return JSON.stringify(r);
+      return JSON.stringify(resolveTimeTool(String(args.when ?? '')));
     } catch (err) {
-      return `resolve_local_time couldn't parse "${String(args.when ?? '')}": ` +
+      return `resolve_time couldn't interpret "${String(args.when ?? '')}": ` +
         `${(err as Error).message}`;
+    }
+  }
+  if (name === 'describe_time') {
+    try {
+      const input = Array.isArray(args.utc_isos)
+        ? (args.utc_isos as string[])
+        : [String(args.utc_isos ?? args.utc_iso ?? '')];
+      return JSON.stringify(describeTimeTool(input));
+    } catch (err) {
+      return `describe_time failed: ${(err as Error).message}. Pass UTC ` +
+        `ISO 8601 timestamps exactly as returned by other tools.`;
     }
   }
 

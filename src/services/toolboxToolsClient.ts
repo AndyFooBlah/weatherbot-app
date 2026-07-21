@@ -51,43 +51,64 @@ export const CHARTABLE_TOOLS = new Set<string>([
 ]);
 
 /**
- * Client-side tool: local→UTC conversion. Not a toolbox/DB tool — it's pure
- * datetime arithmetic, so dispatchWeatherbotTool answers it in the browser
- * (see timeResolver.ts) with no network round-trip. Declared here so Gemini
- * sees it in its function schema like any other tool.
+ * Client-side time tools backed by nl2time (see nl2timeTools.ts). Not
+ * toolbox/DB tools — pure deterministic datetime work answered in the
+ * browser by dispatchWeatherbotTool with no network round-trip. Declared
+ * here so Gemini sees them in its function schema like any other tool.
+ * Both are intentionally BLOCKING (no NON_BLOCKING behavior): their
+ * results feed the very next tool call or the sentence being spoken.
  */
-const RESOLVE_LOCAL_TIME_DECL: FunctionDeclaration = {
-  name: 'resolve_local_time',
+const RESOLVE_TIME_DECL: FunctionDeclaration = {
+  name: 'resolve_time',
   description:
-    'Convert a natural-language time the user said (in their LOCAL time) ' +
-    'into exact UTC timestamps for other tools. ALWAYS use this — never ' +
-    'compute a UTC offset or build a day window yourself. Pass the phrase ' +
-    'the user actually said in `when`, as literally as possible.\n' +
-    'TWO KINDS OF RESULT:\n' +
-    '1. Specific moment ("9pm tonight", "tomorrow at 8am", "in 2 hours") → ' +
-    'utc_iso. Use it verbatim (e.g. record_event.occurred_at).\n' +
-    '2. A day or part of a day ("yesterday", "today", "last Friday", ' +
-    '"July 4", "yesterday morning", "last night") → ALSO returns ' +
-    'window_start_utc and window_end_utc covering that LOCAL midnight-to-' +
-    'midnight day (or morning/afternoon/evening range). For any "high/low/' +
-    'average on <day>" question, make ONE call with the day phrase and use ' +
-    'window_start_utc → from_ts, window_end_utc → to_ts. NEVER construct a ' +
-    'day window from two separate calls or by adding 24 hours yourself — ' +
-    'that is how days end up off by one.',
+    'Convert a natural-language time phrase the user said into an exact ' +
+    'UTC range [start_utc, end_utc). ALWAYS use this for any temporal ' +
+    'phrase — never compute UTC offsets, build day windows, or do any ' +
+    'calendar math yourself. Pass the phrase as literally as possible: ' +
+    '"yesterday", "3pm yesterday", "last week", "yesterday morning", ' +
+    '"July 4", "9pm tonight", "in 2 hours".\n' +
+    'Returns start_utc, end_utc, grain, and interpreted_as (a human echo ' +
+    'of the interpretation you can use when confirming).\n' +
+    '• Range tools: from_ts = start_utc and to_ts = end_utc, verbatim.\n' +
+    '• A single moment (record_event.occurred_at): use start_utc.\n' +
+    '• If `alternatives` is present the phrase was ambiguous — when they ' +
+    'differ by a day or more, ask the user which they meant instead of ' +
+    'guessing.',
   parameters: {
     type: Type.OBJECT,
     properties: {
       when: {
         type: Type.STRING,
-        description:
-          'The time expression the user said, in their local time, e.g. ' +
-          '"tomorrow at 8am", "9pm tonight", "3pm yesterday", "in 2 hours".',
+        description: "The user's temporal phrase, as literally as possible.",
       },
     },
     required: ['when'],
   },
-  // Blocking (default): its result feeds the very next tool call, so the
-  // model should wait for utc_iso before proceeding.
+};
+
+const DESCRIBE_TIME_DECL: FunctionDeclaration = {
+  name: 'describe_time',
+  description:
+    'Convert UTC timestamp(s) from tool results into natural spoken ' +
+    'phrases in the user\'s local time ("9pm last night", "yesterday at ' +
+    '3pm"). ALWAYS call this before speaking any timestamp you got from ' +
+    'a tool (occurred_at, observed_at, or any other UTC field) — never ' +
+    'read an ISO string aloud and never convert it or attach today/' +
+    'yesterday labels yourself. Batch-friendly: pass every timestamp you ' +
+    'need in ONE call via utc_isos. Speak the returned text verbatim.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      utc_isos: {
+        type: Type.ARRAY,
+        items: { type: Type.STRING },
+        description:
+          'UTC ISO 8601 timestamps exactly as returned by other tools, ' +
+          'e.g. ["2026-07-21T04:00:00Z"]. One or many.',
+      },
+    },
+    required: ['utc_isos'],
+  },
 };
 
 /** The `show_chart` parameter, injected client-side onto chartable tools. */
@@ -196,11 +217,11 @@ export async function fetchWeatherbotTools(): Promise<FunctionDeclaration[]> {
   }
   lastFetchedToolNames = tools.map((t) => t.name).filter(Boolean);
   const declarations = tools.map(mcpToFunctionDeclaration);
-  // Append the client-side resolve_local_time tool (handled in-browser by
-  // dispatchWeatherbotTool, never forwarded to the toolbox). Add its name to
-  // the registry so the "tool does not exist" self-correction knows it.
-  declarations.push(RESOLVE_LOCAL_TIME_DECL);
-  lastFetchedToolNames.push('resolve_local_time');
+  // Append the client-side nl2time tools (handled in-browser by
+  // dispatchWeatherbotTool, never forwarded to the toolbox). Add their
+  // names to the registry so "tool does not exist" self-correction knows.
+  declarations.push(RESOLVE_TIME_DECL, DESCRIBE_TIME_DECL);
+  lastFetchedToolNames.push('resolve_time', 'describe_time');
   // Tool-registry visibility log — answers "did the SPA actually hand
   // tools to Gemini at session start, and what shape did they have?".
   // Without this log we can't tell whether a "model didn't call any
