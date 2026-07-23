@@ -15,7 +15,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "eval:smoke": "vitest run evals/driverSmoke.test.ts",
-    "eval:spike": "vitest run evals/spike.test.ts"
+    "eval:corpus": "vitest run evals/corpus.test.ts"
   },
   "dependencies": {
     "@andyfooblah/voice-common": "^0.14.0",

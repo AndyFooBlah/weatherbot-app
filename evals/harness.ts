@@ -224,3 +224,210 @@ export async function truthEventTime(
   if (!hit) throw new Error(`no event matching ${notePattern}`);
   return String(hit.occurred_at);
 }
+
+// ─── Additional ground truths (corpus) ──────────────────────────────────
+
+/** Ground truth: an aggregate (min_value/max_value/avg_value) over a
+ * natural-language window, via summarize_period. */
+export async function truthAggOver(
+  transport: ToolTransport,
+  location: string,
+  measurementType: string,
+  when: string,
+  agg: 'min' | 'max' | 'avg',
+): Promise<number> {
+  const range = resolveTimeTool(when);
+  const rows = await callRows(transport, 'summarize_period', {
+    location,
+    measurement_type: measurementType,
+    from_ts: range.start_utc,
+    to_ts: range.end_utc,
+  });
+  if (!rows.length) throw new Error(`no summarize_period rows for ${when}`);
+  const key = `${agg}_value`;
+  const vals = rows
+    .map((r) => Number(r[key] ?? NaN))
+    .filter((n) => !Number.isNaN(n));
+  if (!vals.length) {
+    throw new Error(`no ${key} in: ${JSON.stringify(rows[0])}`);
+  }
+  if (agg === 'min') return Math.min(...vals);
+  if (agg === 'max') return Math.max(...vals);
+  return vals[0]; // avg over one matched sensor
+}
+
+/** Ground truth: every reading value in a natural-language window (the
+ * bot may quote any single reading, an average, or a rounded value). */
+export async function truthWindowValues(
+  transport: ToolTransport,
+  location: string,
+  measurementType: string,
+  when: string,
+): Promise<number[]> {
+  const range = resolveTimeTool(when);
+  const rows = await callRows(transport, 'observations_in_range', {
+    location,
+    measurement_type: measurementType,
+    from_ts: range.start_utc,
+    to_ts: range.end_utc,
+  });
+  return rows
+    .map((r) => Number(r.value ?? NaN))
+    .filter((n) => !Number.isNaN(n));
+}
+
+/** True if the text contains any acceptable form of any value in
+ * [min(values)-0.5, max(values)+0.5] that matches an actual value —
+ * i.e. the bot quoted a number consistent with the window. */
+export function textContainsAnyNumber(text: string, values: number[]): boolean {
+  return values.some((v) => textContainsNumber(text, v));
+}
+
+// ─── Tool-call inspection ───────────────────────────────────────────────
+
+import type { ConversationResult } from './driver';
+
+/** Args of the first call to `name`, or throws with the actual trajectory. */
+export function argsOf(
+  result: ConversationResult,
+  name: string,
+): Record<string, unknown> {
+  const hit = result.toolCalls.find((c) => c.name === name);
+  if (!hit) {
+    throw new Error(
+      `expected a ${name} call; trajectory was: ` +
+        result.toolCalls.map((c) => c.name).join(' → '),
+    );
+  }
+  return hit.args;
+}
+
+export function allArgsOf(
+  result: ConversationResult,
+  name: string,
+): Array<Record<string, unknown>> {
+  return result.toolCalls.filter((c) => c.name === name).map((c) => c.args);
+}
+
+// ─── Minimal LLM judge (rubric checks that string-matching can't do) ────
+
+import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
+
+/** Judge model per the model-class table (medium batch task → Flash).
+ * Verify the current id against https://ai.google.dev/gemini-api/docs/models
+ * when bumping. */
+export const JUDGE_MODEL = 'gemini-3-flash-preview';
+
+let judge: ChatGoogleGenerativeAI | null = null;
+
+/**
+ * YES/NO rubric check. Returns { pass, reason }. Used ONLY where a
+ * deterministic check can't express the criterion (caveat disclosure,
+ * refusal quality) — data correctness stays deterministic.
+ */
+export async function judgeCheck(
+  answer: string,
+  criterion: string,
+): Promise<{ pass: boolean; reason: string }> {
+  judge ??= new ChatGoogleGenerativeAI({
+    model: JUDGE_MODEL,
+    temperature: 0,
+    apiKey: process.env.GEMINI_API_KEY,
+  });
+  const res = await judge.invoke([
+    [
+      'system',
+      'You are grading a voice assistant\'s spoken answer against one ' +
+        'criterion. Reply with exactly "YES: <reason>" or "NO: <reason>".',
+    ],
+    ['human', `Criterion: ${criterion}\n\nAnswer to grade: "${answer}"`],
+  ]);
+  const text = String(res.content).trim();
+  return { pass: /^YES/i.test(text), reason: text };
+}
+
+// ─── Results recorder (scoreboard) ──────────────────────────────────────
+
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join as pathJoin } from 'node:path';
+
+export interface CaseResult {
+  id: string;
+  tags: string[];
+  ok: boolean;
+  ms: number;
+  error?: string;
+  answer?: string;
+  trajectory?: string[];
+}
+
+const caseResults: CaseResult[] = [];
+
+export function recordCaseResult(r: CaseResult): void {
+  // Upsert by id: with vitest retry, a failed first attempt may be
+  // followed by a passing retry — the final attempt wins.
+  const i = caseResults.findIndex((x) => x.id === r.id);
+  if (i >= 0) caseResults[i] = r;
+  else caseResults.push(r);
+}
+
+/** Write evals/results/last-run.json + print a compact scoreboard. */
+export function writeScoreboard(): void {
+  if (!caseResults.length) return;
+  const dir = pathJoin(__dirname, 'results');
+  mkdirSync(dir, { recursive: true });
+  const passed = caseResults.filter((r) => r.ok).length;
+  const summary = {
+    at: new Date().toISOString(),
+    passed,
+    failed: caseResults.length - passed,
+    cases: caseResults,
+  };
+  writeFileSync(
+    pathJoin(dir, 'last-run.json'),
+    JSON.stringify(summary, null, 2),
+  );
+  const byTag = new Map<string, { p: number; f: number }>();
+  for (const r of caseResults) {
+    for (const t of r.tags) {
+      const e = byTag.get(t) ?? { p: 0, f: 0 };
+      r.ok ? e.p++ : e.f++;
+      byTag.set(t, e);
+    }
+  }
+  console.log(`\n── eval scoreboard: ${passed}/${caseResults.length} ──`);
+  for (const [t, e] of [...byTag].sort()) {
+    console.log(`  ${t.padEnd(12)} ${e.p}/${e.p + e.f}`);
+  }
+  for (const r of caseResults.filter((x) => !x.ok)) {
+    console.log(`  ✗ ${r.id}: ${r.error?.slice(0, 120)}`);
+  }
+}
+
+/** Ground truth: notes of events inside a natural-language window. */
+export async function truthEventsInWindow(
+  transport: ToolTransport,
+  when: string,
+): Promise<string[]> {
+  const range = resolveTimeTool(when);
+  const rows = await callRows(transport, 'list_events', {
+    from_ts: range.start_utc,
+    to_ts: range.end_utc,
+    row_limit: 100,
+  });
+  return rows.map((r) => String(r.note ?? '')).filter(Boolean);
+}
+
+/** Newest observation timestamp across all sensors — used by the corpus
+ * freshness guard (a stale static snapshot degrades relative-time cases
+ * into no-data checks; re-seed for full coverage). */
+export async function newestObservation(
+  transport: ToolTransport,
+): Promise<Date> {
+  const rows = await callRows(transport, 'latest_observation', {});
+  const times = rows
+    .map((r) => new Date(String(r.observed_at)).getTime())
+    .filter((t) => !Number.isNaN(t));
+  if (!times.length) throw new Error('no observations at all in eval DB');
+  return new Date(Math.max(...times));
+}
