@@ -14,7 +14,7 @@ import {
   AUTO_GREET_TEXT,
   WEATHERBOT_SYSTEM_INSTRUCTION_PLACEHOLDER,
   buildWeatherbotInstruction,
-} from '../services/instructionBuilder';
+} from '../agent/instructionBuilder';
 
 /**
  * Pinned Gemini Live prebuilt voice. Aoede = warm, friendly, mid-pitch — fits
