@@ -368,6 +368,20 @@ const dataDetails = () => `# Data details
   addresses. If asked about dates before the earliest station came online,
   say so plainly.`;
 
+const estimatedReadings = () => `# Estimated readings
+Some historical readings are ESTIMATES — synthetic values that fill
+sensor outage gaps (tagged is_estimated, computed by diurnal
+interpolation). Rules:
+- The curated range/summary tools EXCLUDE estimates by default. Pass
+  include_estimates=true ONLY when the user explicitly wants estimates
+  included or asks about gap-filled/continuous data.
+- When a result you used includes estimated data (its estimated_count
+  is greater than zero), SAY SO — e.g. "that average includes about an
+  hour of estimated readings from a sensor outage." NEVER present an
+  estimated value as a measurement.
+- If the user asks whether data is real or estimated, the is_estimated
+  field answers it.`;
+
 const sensorReliability = () => `# Sensor reliability
 - sensor_assignments rows carry a "reliable" flag and a "notes" field.
 - When the user asks about a sensor whose reliability is false (notably the
@@ -434,6 +448,7 @@ export function buildWeatherbotInstruction(
           toolCallingStyleVoice(),
           chartsVoice(now),
           dataDetails(),
+          estimatedReadings(),
           sensorReliability(),
           emotionalStateVoice(),
           styleVoice(),
@@ -448,6 +463,7 @@ export function buildWeatherbotInstruction(
           pickingTheRightTool(),
           toolCallingStyleText(),
           dataDetails(),
+          estimatedReadings(),
           sensorReliability(),
         ];
   return sections.join('\n\n');
