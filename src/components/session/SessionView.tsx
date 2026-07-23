@@ -59,9 +59,9 @@ export function SessionView({ user }: SessionViewProps) {
     }
   }, [messages]);
 
-  const isConnecting =
-    connectionStatus === ConnectionStatus.CONNECTING ||
-    connectionStatus === ConnectionStatus.RECONNECTING;
+  // voice-common reports CONNECTING for both the initial connect and
+  // session-resumption reconnects; there is no separate RECONNECTING state.
+  const isConnecting = connectionStatus === ConnectionStatus.CONNECTING;
 
   const handleToggle = async () => {
     if (isRecording) {
@@ -424,8 +424,6 @@ function connectionStatusLabel(s: ConnectionStatus): string {
       return 'Connected';
     case ConnectionStatus.CONNECTING:
       return 'Connecting…';
-    case ConnectionStatus.RECONNECTING:
-      return 'Reconnecting…';
     case ConnectionStatus.DISCONNECTED:
       return 'Disconnected';
     default:
