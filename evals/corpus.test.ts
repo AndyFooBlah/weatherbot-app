@@ -56,7 +56,9 @@ describe.skipIf(!enabled)('eval corpus', () => {
       const t0 = Date.now();
       let result: ConversationResult | undefined;
       try {
-        result = await runConversation(c.turns, { transport, apiKey });
+        const turns =
+          typeof c.turns === 'function' ? await c.turns(transport) : c.turns;
+        result = await runConversation(turns, { transport, apiKey });
 
         if (c.requiredTools?.length) {
           const traj = await expectToolsUsed(result.events, c.requiredTools);

@@ -17,10 +17,9 @@
 //   judge       LLM-rubric checks (only where determinism can't reach)
 //   chart       show_chart behavior
 //
-// NOT here yet (tracked in #22): estimates-disclosure cases (blocked on
-// the weatherbot#13 v4 context-set flip — no estimated rows exist and
-// the disclosure prompt guidance ships with that rollout), and audio
-// cases (phase 2).
+//   estimates   gap-fill estimate exclusion/opt-in/disclosure
+//
+// NOT here yet (tracked in #22): audio cases (phase 2).
 
 import { describeTimeTool, resolveTimeTool } from '../src/agent/nl2timeTools';
 import type { ConversationResult } from './driver';
@@ -35,6 +34,7 @@ import {
   truthEventsInWindow,
   truthLatestValue,
   truthWindowValues,
+  findEstimatedOutdoorDay,
 } from './harness';
 import type { ToolTransport } from '../src/agent/types';
 
@@ -47,7 +47,9 @@ export interface CheckContext {
 export interface EvalCase {
   id: string;
   tags: string[];
-  turns: string[];
+  /** Static turns, or a function that derives them from live eval-DB
+   * state (e.g. "which recent day actually has estimated readings"). */
+  turns: string[] | ((transport: ToolTransport) => Promise<string[]>);
   /** Trajectory must include at least these tools (agentevals superset). */
   requiredTools?: string[];
   /** Trajectory must include none of these. */
@@ -468,5 +470,55 @@ export const CASES: EvalCase[] = [
           'should say there is no basement sensor or that location is ' +
           'not monitored.',
       ),
+  },
+
+  // ── estimates (gap-fill rollout, weatherbot#13) ─────────────────────
+  {
+    id: 'C25-estimates-excluded-by-default',
+    tags: ['estimates', 'data', 'guardrail'],
+    turns: async (t) => {
+      const day = await findEstimatedOutdoorDay(t);
+      return [`What was the average outdoor temperature on ${day.label}?`];
+    },
+    requiredTools: ['resolve_time', 'summarize_period'],
+    check: async ({ result, answers, transport }) => {
+      const day = await findEstimatedOutdoorDay(transport);
+      // A plain question must NOT opt into estimates.
+      for (const args of allArgsOf(result, 'summarize_period')) {
+        if (args.include_estimates === true) {
+          throw new Error('include_estimates=true on a plain question');
+        }
+      }
+      expectNum(answers[0], day.avgMeasured, `measured-only avg (${day.label})`);
+    },
+  },
+  {
+    id: 'C26-estimates-opt-in-with-disclosure',
+    tags: ['estimates', 'data'],
+    turns: async (t) => {
+      const day = await findEstimatedOutdoorDay(t);
+      return [
+        `What was the average outdoor temperature on ${day.label}, ` +
+          'including any estimated readings?',
+      ];
+    },
+    requiredTools: ['resolve_time', 'summarize_period'],
+    check: async ({ result, answers, transport }) => {
+      const day = await findEstimatedOutdoorDay(transport);
+      const opted = allArgsOf(result, 'summarize_period').some(
+        (a) => a.include_estimates === true,
+      );
+      if (!opted) {
+        throw new Error('user asked to include estimates; tool call did not');
+      }
+      expectNum(
+        answers[0], day.avgWithEstimates, `with-estimates avg (${day.label})`);
+      // Law of disclosure: estimated content must be SAID.
+      if (!/estimat/i.test(answers[0])) {
+        throw new Error(
+          `answer must disclose estimated data: "${answers[0]}"`,
+        );
+      }
+    },
   },
 ];

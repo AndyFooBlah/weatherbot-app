@@ -431,3 +431,62 @@ export async function newestObservation(
   if (!times.length) throw new Error('no observations at all in eval DB');
   return new Date(Math.max(...times));
 }
+
+// ─── Estimated-data discovery (estimates eval cases) ────────────────────
+
+export interface EstimatedDay {
+  /** NLQ-ready local day label, e.g. "July 3" — parses back to the same
+   * window via resolve_time (bias past), so the agent and the ground
+   * truth are guaranteed to agree on the day. */
+  label: string;
+  avgMeasured: number;
+  avgWithEstimates: number;
+  estimatedCount: number;
+}
+
+let cachedEstimatedDay: EstimatedDay | null = null;
+
+/** Find a recent local day where the outdoor temperature has BOTH
+ * measured and estimated readings (a filled outage day). Probes day
+ * labels 2–35 days back through summarize_period, using resolve_time
+ * for the windows — the same path the agent takes for the same label. */
+export async function findEstimatedOutdoorDay(
+  transport: ToolTransport,
+): Promise<EstimatedDay> {
+  if (cachedEstimatedDay) return cachedEstimatedDay;
+  for (let back = 2; back <= 35; back++) {
+    const d = new Date(Date.now() - back * 86_400_000);
+    const label = d.toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+    });
+    const range = resolveTimeTool(label);
+    const withEst = await callRows(transport, 'summarize_period', {
+      location: 'Outdoor',
+      measurement_type: 'temperature',
+      from_ts: range.start_utc,
+      to_ts: range.end_utc,
+      include_estimates: true,
+    });
+    const row = withEst.find((r) => Number(r.estimated_count ?? 0) > 0);
+    if (!row) continue;
+    const measured = await callRows(transport, 'summarize_period', {
+      location: 'Outdoor',
+      measurement_type: 'temperature',
+      from_ts: range.start_utc,
+      to_ts: range.end_utc,
+    });
+    if (!measured.length) continue; // want a MIXED day, not all-estimated
+    cachedEstimatedDay = {
+      label,
+      avgMeasured: Number(measured[0].avg_value),
+      avgWithEstimates: Number(row.avg_value),
+      estimatedCount: Number(row.estimated_count),
+    };
+    return cachedEstimatedDay;
+  }
+  throw new Error(
+    'no day with estimated outdoor readings in the last 35 days — ' +
+      're-seed the eval DB from prod (infra/07-seed-eval-db.sh)',
+  );
+}
