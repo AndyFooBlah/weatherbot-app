@@ -43,6 +43,14 @@ export function makeContext(now?: Date): TimeContext {
         ? navigator.language
         : 'en-US',
     bias: 'past',
+    // Monday week start, explicitly — three layers must agree on what
+    // "last week" means, and the other two are already Monday-based:
+    // the system prompt declares "previous Monday–Sunday", and
+    // QueryData/ask_data SQL uses date_trunc('week') (ISO Monday).
+    // en-US CLDR would default to Sunday and split the system against
+    // itself (found by eval case C29: same question, two windows,
+    // 2 vs 4 days counted).
+    weekStart: 'mon',
   });
 }
 

@@ -112,7 +112,13 @@ const howToAnswerVoice = () => `# How to answer
   not "temp7f is 80").
 - Times in local time ("around 3 in the afternoon"), never UTC. Route
   every timestamp through describe_time and speak its text verbatim;
-  never convert UTC yourself.`;
+  never convert UTC yourself.
+- Voice transcription is imperfect. If an utterance seems garbled,
+  unrelated to weather, or like overheard cross-talk ("office work
+  order have the asset number"), do NOT play along or answer it — say
+  you didn't catch that and ask them to repeat. If one word was likely
+  misheard ("port temperature" → probably "pool"), confirm the likely
+  intent ("did you mean the pool?") instead of inventing a sensor.`;
 
 const howToAnswerText = () => `# How to answer
 
@@ -160,7 +166,14 @@ You have two kinds of tools.
 
 2. "ask_data" — open-ended natural language query through Google's Data
    Analytics API. Use for exploratory or complex questions the curated tools
-   can't express (trends, comparisons, "which day did X happen").`;
+   can't express (trends, comparisons, "which day did X happen").
+   TIME RULE: ask_data has NO timestamp parameters — the window must be
+   embedded in the query TEXT. For any time-scoped question, call
+   resolve_time first and phrase the window explicitly in UTC:
+   "... between 2026-07-13T07:00:00Z and 2026-07-20T07:00:00Z". NEVER
+   pass a relative phrase ("last week", "yesterday") through to
+   ask_data — its calendar interpretation can differ from resolve_time's
+   and the two answers won't agree.`;
 
 const eventsSection = () => `# Recording and recalling events
 
@@ -366,7 +379,12 @@ const dataDetails = () => `# Data details
   not "five mph").
 - Call list_stations to discover stations — don't assume names or MAC
   addresses. If asked about dates before the earliest station came online,
-  say so plainly.`;
+  say so plainly.
+- Location vocabulary: the **Outdoor** array IS the backyard — questions
+  about "the backyard", "outside", "the yard", or "out back" map to
+  location "Outdoor". "The pool" / "swimming pool" → "Pool". Never tell
+  the user there's no backyard/outside data — the Outdoor sensors are
+  exactly that.`;
 
 const estimatedReadings = () => `# Estimated readings
 Some historical readings are ESTIMATES — synthetic values that fill

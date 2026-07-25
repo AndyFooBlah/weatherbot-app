@@ -490,3 +490,42 @@ export async function findEstimatedOutdoorDay(
       're-seed the eval DB from prod (infra/07-seed-eval-db.sh)',
   );
 }
+
+/** Ground truth: count of distinct LOCAL calendar days in a window where
+ * any reading exceeded `threshold`. Used for "how many days above X"
+ * cases (ask_data territory — this is the deterministic cross-check). */
+export async function truthDaysAbove(
+  transport: ToolTransport,
+  location: string,
+  measurementType: string,
+  when: string,
+  threshold: number,
+): Promise<number> {
+  const range = resolveTimeTool(when);
+  const rows = await callRows(transport, 'observations_in_range', {
+    location,
+    measurement_type: measurementType,
+    from_ts: range.start_utc,
+    to_ts: range.end_utc,
+    row_limit: 5000,
+  });
+  const days = new Set<string>();
+  for (const r of rows) {
+    if (Number(r.value) > threshold) {
+      // Local calendar day via describe-free conversion: use the local
+      // date from toLocaleDateString in the harness TZ.
+      days.add(
+        new Date(String(r.observed_at)).toLocaleDateString('en-CA', {
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        }),
+      );
+    }
+  }
+  return days.size;
+}
+
+/** All numeric values (with optional decimals) mentioned in an answer —
+ * for "must not exceed the true maximum" style checks. */
+export function numbersIn(text: string): number[] {
+  return [...text.matchAll(/\d+(?:\.\d+)?/g)].map((m) => Number(m[0]));
+}

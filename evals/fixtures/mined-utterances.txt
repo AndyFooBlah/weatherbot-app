@@ -1,0 +1,271 @@
+# Real user utterances mined from Firestore session transcripts (2026-07-24)
+# Source material for eval cases — weatherbot-app#22
+Yeah. Uh can you tell me what the temperature is outside right now?
+Hey, what's the current temperature?
+Yes. Uh hi. Can you tell me what the current temperature is?
+Yeah, can you tell me if there were any days in March that had a higher temperature than the average of the temperature the high daily high temperature of February?
+What was the average daily high in February?
+Can you tell me what the standard deviation of the daily high temperature for February was?
+Can you tell me um I want to look at the uh let me think. I want to look at the um the I want to look at the standard deviation for the daily high temperatures for each month of the last 12 months and I want you to sort them from highest to lowest.
+No, thank you. We're all done.
+Um actually, sorry. I need to go. Let's end now.
+Hey, what's the current temperature?
+What was the high temperature so far today?
+Um, was that more or less than yesterday?
+Well, what was the hottest day so far in 2026?
+What was the hottest day in 2025?
+Were there any days that were above 100°?
+Yeah, actually, uh, can you tell me, you know, which days, uh, of the past month were higher than the average of the same month from a year ago?
+No, I think we're all done. Thanks.
+Hey y'all, what's the current temperature?
+What's the humidity?
+Shirts 94% outside?
+응. right now, I'm looking at the sensor and I'm seeing the humidity is 78%. Are you sure you're looking at the right sensor?
+I'm looking at the Home Two station. Says 78% outdoors.
+Can you tell me where you are seeing the humidity of 94%?
+No, that's all. Thanks.
+Yeah, what was the temperature at about 4:00 p.m. today?
+Yes, please.
+Yeah, can you tell me what's the current humidity?
+Yeah, what was the average humidity yesterday?
+I know that's all place.
+Hey, what was the average humidity yesterday?
+And what was the high temperature yesterday?
+What is the difference between the high temperature and the low temperature on each of the last five days?
+Great, thank you. All done.
+Hey, what was the average humidity of the first three days of June?
+Okay. Can you tell me what it was for the even days in June?
+Hey, um can you tell me for the first four days of March, um what was the average difference between high and low temperature?
+Can you list all of the days with high temperatures above seventy degrees in the last ninety days?
+Actually, can you tell me whether March twenty-fifth was warmer or colder this year than the same day the year before?
+Yes, please.
+Thank you. I'm all done.
+Hey, can you count the number of days that had a low temperature that was below 40° out of the month of April?
+Hey, are you still looking at it?
+Hello.
+Hello.
+All done. Thank you.
+Hey, uh what was the highest temperature yesterday?
+Um and what was the difference between that and the average of the prior five days?
+Hey, what was the port temperature yesterday?
+gray And what was the temperature on Sunday?
+Okay. Um and was there a point in the afternoon where the temperature dropped sharply?
+Are you sure you're looking at afternoon in Pacific time?
+Can you do the same analysis for Saturday?
+Um again, I think you're looking at 6:00 UTC. Um you should be looking at 6:00 uh GMT uh Pacific time.
+Right, thank you.
+Rhode Island
+I sent I sent Claude off to go do something last night and it may have broken it, but we'll see.
+Yeah, hey. Um in the last three days, has it gone below 50° in the bedroom?
+A
+It's doing well up there.
+Hey, what's the current temperature?
+You buy a whole house to that thing.
+What's the humidity?
+哇 呀 呀 , 我 们 , talking 。
+If you're not about to even break up
+What's the temperature in the garage?
+Vai, ricca.
+70 light years
+Hey, can you tell me what the current temperature is in the garage?
+Wow. I mean that's uh that is not what I was hoping to hear. Um can you tell me what's going on in the garage?
+kind of think this is your fault.
+No, it's got to be colder in there. Like I I keep all my milk and eggs in the garage.
+You know, that would be awesome and I would be so happy and I would totally appreciate it.
+I don't know. If you feel so smart, why don't you tell me what the temperature is in the pool?
+Totally. I am so happy.
+Uh maybe you should just chill out.
+Can you tell me anything about the temperature in the garage right now?
+What's the current wind speed?
+Hey, what's the current wind speed? I said.
+What is the lowest wind speed that we observed on Fridays over the last three weeks?
+Yeah, try again if it's not too much trouble.
+Yeah, that's all.
+Hey, can you tell me how many days in the last three weeks the swimming pool temperature was above 80°?
+No, we can be done for now.
+Uh what's the current temperature in the garage?
+What is the temperature in the garage been over the last 6 hours?
+What has it been over the last 30 days?
+Can you show me the daily highs and lows each day for the last 3 days?
+Yeah, can you tell me what the swimming pool temperature has been over the last eight hours?
+Are you sure that's a swimming pool?
+But what is it give almost the exact same temperature as the garage? Doesn't that seem suspicious?
+Can you show me that swimming pool temperature over the last 48 hours?
+Can you show me the swimming pool temperature last weekend?
+Ah! It would be the Saturday and Sunday that's before this one.
+Yeah, actually, can you show me Friday through Sunday?
+from the eleventh to the fourteenth
+Ah! It's possible. It's It's a much wider fluctuation than I would expect. I I'm Are you sure that that's a swimming pool?
+No, the sensor is in the water. Can you tell me which table you're looking at?
+Yeah, what does that temperature say right now?
+Yeah, just pull the latest observation and tell me what the pool temperature is right now.
+Hey, can you tell me how many days out of the last five we've had at least a 2° increase in the temperature of the swimming pool?
+Out of the last five days, which day had the lowest temperature for the swimming pool?
+Yeah, um what was the lowest temperature in the swimming pool on the previous three weekends?
+Yeah, can you show me the uh a graph of the pool temperature over the last two weeks?
+Uh just list out the specific readings.
+No, the graph was nice. Thank you for sharing it.
+Now, your tool response for observations and range contains a graph.
+Yeah, I'm looking at a graph that is generated as part of the tool output. Um, it doesn't go to you, but it does go to the app.
+No, I think we're all done. Thanks.
+Hey, can you tell me what the uh pool temperature was over the last five days?
+Yeah. What's the temperature in the garage right now?
+Okay. Um and what has the temperature been over the last 2 weeks?
+Can you show me a chart of the temperature over the last five days?
+¿Sabes?
+Yeah, can you tell me what the swimming pool temperature was over the last week?
+What?
+Hey, what's the current temperature in the swimming pool?
+Yes, please.
+Sure.
+Over the last 24 hours.
+Uh, we're all done now.
+Hey, uh what's the current temperature at my house?
+Wow, can you show me what the pool temperature is over the last 24 hours?
+Yeah, if you could make a chart out of that, that'd be great.
+Hey, can you tell me what the pool temperature has been for the last 24 hours?
+Yeah. Uh can you tell me what the last 24 hours of uh temperatures were in my swimming pool?
+Hey, can you tell me what the last 24 hours are for my swimming pool?
+Hey, can you tell me what my pool temperature has been for the last 24 hours?
+a swimming pool
+Hey, can you tell me what the temperature is in the bedroom right now?
+What is the current temperature?
+Yeah, can you tell me what the current temperature is?
+What's the current temperature?
+What's the pool temperature been over the last 24 hours?
+Can you show me a chart of the pool temperature for the last 24 hours?
+Can you tell me how many days out of the last three weeks um had a difference in temperature of more than 20°?
+I think we're done. Thanks.
+Can you tell me what the current temperature in the pool is?
+Can you tell me how many times over the last six days it's been over 90°?
+On how many days did it fall below sixty degrees at night in the month of June?
+Could you give me a graph of those days?
+Okay, but I didn't see a graph.
+What is the current temperature of the pool?
+And what was the highest temperature yesterday?
+Are you checking?
+What was the highest temperature in the swimming pool?
+the highest temperature yesterday
+Thank you. We're all done.
+Hey, can you tell me what the humidity is right now?
+Okay, and what's the temperature right now?
+Okay, and can you tell me how many days had any pool temperature above 90 in the last two weeks?
+What was the highest temperature in the pool in the last two weeks?
+But you told me that there weren't any days over 90 in the last two weeks. How is that possible?
+Yeah, what I really want to know is the number of days in the last two weeks when the peak temperature in the pool was over 90.
+Are you still waiting?
+What was the highest temperature over the last two weeks?
+I mean for the pool.
+So clearly there was at least one day where it was over 90°. So now I want you to go back again and tell me how many days were over 90° in the pool in the last two weeks.
+Now, I want you to look up which day did it reach 92.5 in the pool?
+Yeah, why don't you give me a chart of the pool temperature over the last two weeks?
+Let's stop here.
+Hey, what's the temperature in the backyard right now?
+Uh what was the highest wind speed yesterday?
+Okay, and can you tell me over the last three weeks, were there any days where the wind was more than 10 mph and the temperature was more than 80°F?
+office work order have the asset number
+Oh, very cool. Um can you show me a graph of the wind speed by day over the last uh 30 days?
+Thanks, all done.
+Hey, what's the temperature right now in my backyard?
+Is the garage warmer or cooler than that?
+Interesting. Can you show me a chart of the garage temperature over the last 12 hours?
+Oh, when was the highest temperature today?
+What time was that peak temperature?
+Hey, uh what's the temperature right now in my backyard?
+Okay, and is the garage warmer or cooler than that?
+um Can you show me a chart of the garage temperature over the last 12 hours?
+Ooh. You didn't actually show the chart.
+Hey, what's the current temperature in my backyard right now?
+Awesome. Good night.
+Hey, what's the temperature right now in San Diego?
+No, sorry. I was asking, "What's the temperature in my backyard?"
+Is it warmer or cooler in my garage?
+Can you show me a chart of the garage temperature over the last 12 hours?
+Uh and at what time was its uh at its hottest point in the last day?
+Thanks, hold on.
+Hey WeatherBot, what's the temperature right now in my backyard?
+Yeah, can you list the locations we measure?
+Yeah, I know. I think we're done for now.
+What's the outdoor temperature right now?
+Is it warmer or colder than that in my garage?
+Can you show me a chart of the last 12 hours of temperature from the garage?
+Interesting. Uh at what time today was the hottest temperature?
+Oh, I think we're all done.
+Hey, uh so when was the hottest time in the garage today?
+Doh!
+Yeah, can you show me a chart of the garage temperature for the last 12 hours?
+What time was the hottest time in the garage today?
+Excellent.
+No. I think we're all done. Thank you.
+Hey, what's the temperature in the bedroom right now?
+How much warmer is it in the garage?
+What's the hottest it got in the garage earlier today?
+At what time today did it get to 85°?
+What was the time when the garage reached its peak temperature today?
+Uh and what was the temperature at that time?
+Uh what was the temperature 1 hour later?
+Uh what time did it first fall below 80°?
+Can you show me a chart of temperature in the garage over the last 24 hours?
+I think we're done.
+Hey, so what's the temperature in my garage right now?
+It's not too bad. How cold did it get there last night?
+Not too bad. Can you show me a chart of the temperature over the last 12 hours?
+Hey, cool. We're all done. Thank you.
+Hey, what's the temperature in my garage right now?
+What's the temperature in the garage likely to be tomorrow at noon?
+Could you look at the last three days of temperatures at noon and use that to make an estimate of the likely temperature tomorrow?
+Thanks.
+No, we're all done.
+Hey, uh what's the temperature in the garage today?
+Can you show me a chart over the last 24 hours?
+Great, thank you.
+What's the current temperature in La Grange?
+What was the uh uh high temperature yesterday in my garage?
+Do you tell me exactly what that high temperature was yesterday?
+Great, thank you.
+No.
+Hey, how hot did it get in my garage yesterday?
+That's awesome. Um can you tell me what the temperature in the garage was over the last 12 hours?
+Hey, can you tell me the last time I took the cover off the pool?
+Are you checking?
+Okay. Um can you record that uh at 9:00 p.m. tonight, I'm planning to refill the bird feeder that is next to the weather station?
+Yeah. I'm just want to check and see what's the current temperature in the garage?
+And what's the temperature outside?
+Okay. Um and are there any events in the last 24 hours?
+Uh when did I make that note?
+Okay, but that that time was uh in GMT. What was the local time?
+Are you sure?
+You just ate 48 p.m.
+Yeah, can you tell me if I refilled my bird feeder recently?
+Uh maybe in the last 7 days.Did you find anything?
+Gotcha. Um did you find anything uh in between the July 14th and 22nd?
+Do you know what time it is now?
+It's nine forty-eight PM.
+I refilled the bird feeder at 9:00 p.m. That was 48 minutes ago. It's in the past.
+Uh no. Um can you tell me what time I moved the garage sensor?
+When you say it was last Sunday, um, how many days ago was that?
+Really? It was five days ago? Are you sure about that?
+Uh can you tell me what the uh high temperature was in my swimming pool yesterday?Did you come up with anything?
+Possibly, but I'm pretty sure there have been some updates since then.
+Yeah, can you try the outdoor temperature?Did you get anything?
+What time was it 77°?
+Yeah, I'm trying to figure out where did that 77° come from?
+What was the exact time range of the query that you ran?
+Midnight UTC to midnight UTC would be a 24-hour window. And midnight to UTC midnight UTC would not be yesterday. I don't live in UTC. I live in Pacific time.
+Yeah, can you actually try it from midnight Sunday to midnight Monday?In Pacific time?
+No, that's all, thanks.
+Hey, uh what was the high temperature today?
+Do we have a uh pool temperature today?
+What was the last temperature reading we got from the pool sensor?
+Okay. Um and uh when did I last uh fill the bird feeder?
+Awesome. Thank you. Good night.
+Hey, uh what was the temperature last night at 9:00 in my garage?
+Awesome. And do you remember what time I last refilled my bird feeder?
+Ok and record that I'm about to give a demo at the current time.
+Thank you. All done.
+Hey, uh can you tell me what the temperature was in my garage uh yesterday around noon?
+Mm. Okay. How many days in the last week did it get above 70°?
+Excellent.
+Yeah, can you tell me how it is that it went above uh a 70° on eight days in the last week?
+Gotcha. Thank you.
+Oh, uh can you just record a note that uh the demo went successfully?

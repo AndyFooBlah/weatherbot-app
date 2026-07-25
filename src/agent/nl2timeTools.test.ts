@@ -51,10 +51,13 @@ describe('resolve_time — historical regressions', () => {
     expect(r.end_utc).toBe('2026-07-05T07:00:00Z');
   });
 
-  it('"last week" — calendar week, en-US Sunday start', () => {
+  it('"last week" — calendar week, MONDAY start (deliberate override)', () => {
+    // weekStart 'mon' overrides the en-US Sunday default so resolve_time,
+    // the system prompt ("previous Monday–Sunday"), and QueryData's
+    // date_trunc('week') SQL all agree on the same window (C29 finding).
     const r = resolveTimeTool('last week', NOW);
-    expect(r.start_utc).toBe('2026-07-12T07:00:00Z');
-    expect(r.end_utc).toBe('2026-07-19T07:00:00Z');
+    expect(r.start_utc).toBe('2026-07-13T07:00:00Z'); // Mon Jul 13
+    expect(r.end_utc).toBe('2026-07-20T07:00:00Z'); // Mon Jul 20
     expect(r.grain).toBe('week');
   });
 
