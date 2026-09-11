@@ -1,5 +1,8 @@
 # Real user utterances mined from Firestore session transcripts (2026-07-24)
 # Source material for eval cases — weatherbot-app#22
+# Provenance (verified 2026-09-10): every utterance is from the repository owner's own sessions —
+# the deployment has a single allow-listed account and all 64 stored sessions belong to it.
+# Station names and other identifiers have been generalized; do not mine other users' sessions into this file.
 Yeah. Uh can you tell me what the temperature is outside right now?
 Hey, what's the current temperature?
 Yes. Uh hi. Can you tell me what the current temperature is?
@@ -21,7 +24,7 @@ Hey y'all, what's the current temperature?
 What's the humidity?
 Shirts 94% outside?
 응. right now, I'm looking at the sensor and I'm seeing the humidity is 78%. Are you sure you're looking at the right sensor?
-I'm looking at the Home Two station. Says 78% outdoors.
+I'm looking at the my station station. Says 78% outdoors.
 Can you tell me where you are seeing the humidity of 94%?
 No, that's all. Thanks.
 Yeah, what was the temperature at about 4:00 p.m. today?
