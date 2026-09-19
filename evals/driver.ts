@@ -29,10 +29,22 @@ import {
   NowContext,
 } from '../src/agent/instructionBuilder';
 import { buildDeclarations } from '../src/agent/toolDeclarations';
+import { WEATHERBOT_LIVE_MODEL } from '../src/agent/liveModel';
 import type { ToolTransport } from '../src/agent/types';
 
-/** Production Live model — must match voicecommon's default. */
-export const WEATHERBOT_LIVE_MODEL = 'gemini-3.1-flash-live-preview';
+/**
+ * Production Live model, re-exported from the agent core so the evals and the
+ * SPA cannot drift.
+ *
+ * This used to be a local literal "matching voicecommon's default". That is no
+ * longer the relationship: since VoiceCommon 0.15.0 the app passes `liveModel`
+ * explicitly (src/hooks/useWeatherbotSession.ts), so production is pinned by
+ * src/agent/liveModel.ts and VoiceCommon's own default is irrelevant here.
+ *
+ * Note the driver never sends `thinkingConfig` — gemini-3.8-live rejects it
+ * with a WebSocket 1007 at setup. Do not add one.
+ */
+export { WEATHERBOT_LIVE_MODEL };
 
 export type TraceEvent =
   | { type: 'user'; text: string }

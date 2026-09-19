@@ -15,6 +15,10 @@ import {
   WEATHERBOT_SYSTEM_INSTRUCTION_PLACEHOLDER,
   buildWeatherbotInstruction,
 } from '../agent/instructionBuilder';
+import {
+  WEATHERBOT_LIVE_MODEL,
+  WEATHERBOT_LIVE_THINKING_LEVEL,
+} from '../agent/liveModel';
 
 /**
  * Pinned Gemini Live prebuilt voice. Aoede = warm, friendly, mid-pitch — fits
@@ -87,6 +91,13 @@ export function useWeatherbotSession(
     speechConfig: {
       voiceConfig: { prebuiltVoiceConfig: { voiceName: VOICE_NAME } },
     },
+    // gemini-3.8-live (stable) replaces gemini-3.1-flash-live-preview at the
+    // same price. It rejects thinkingConfig outright (WebSocket 1007), so
+    // thinkingLevel must be 'none' — VoiceCommon still defaults to MINIMAL
+    // for consumers that have not migrated. Turn-taking is deliberately
+    // untouched here: weatherbot keeps VoiceCommon's snappy server-side VAD.
+    liveModel: WEATHERBOT_LIVE_MODEL,
+    thinkingLevel: WEATHERBOT_LIVE_THINKING_LEVEL,
     onBotSpeaking: options.onBotSpeaking,
     onSessionEnd: options.onSessionEnd,
     onSessionEndRequest: async () => {
