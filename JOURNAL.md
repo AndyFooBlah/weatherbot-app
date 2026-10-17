@@ -7,12 +7,25 @@ a new entry that names the earlier one's timestamp. Synced daily to
 `andy-private-docs/journals/`.
 
 Entries up to 2026-10-16 were backfilled on 2026-10-16 from git
-history, GitHub issues, and Claude session transcripts; timestamps are
-anchored to commits/issues where available, else day-accurate.
+history, GitHub issues, and Claude session records; timestamps are
+anchored to commits/issues where available, else day-accurate. Two
+sessions backfilled concurrently; this file merges both drafts plus
+details contributed by the session that performed the 2026-09-19 Live
+model migration. The repo's git history starts at a squashed
+publication commit (2026-07-10), so earlier entries are anchored to
+issue timestamps.
 
 ---
 
-- 2026-07-10T17:09Z [milestone] Repo created: mobile-first voice frontend on Gemini Live via @andyfooblah/voice-common; tools fetched live from the weatherbot toolbox (b2d8515).
+- 2026-06-01T04:57Z [milestone] Phase 2: React/Vite SPA bootstrapped with Firebase Auth + Hosting (#1). (Phase 1 — the MCP Toolbox on Cloud Run — lives in the weatherbot repo.)
+- 2026-06-12T04:29Z [milestone] Phase 3: Cloud Functions `mintGeminiLiveToken` (single-use 30-min ephemeral Gemini Live tokens; the real API key never leaves the server) and `callTool` (proxy to the MCP Toolbox) (#2).
+- 2026-06-12T04:48Z [milestone] Phase 4: voice MVP shipped — VoiceCommon wired in, system prompt ported, 7 weatherbot tools declared to Gemini Live (#3). Smoke-test fixes followed: @google/genai 2.x upgrade, lazy httpsCallable (#4); endSession + transcript polish (#5, #6).
+- 2026-06-13T21:13Z [milestone] Phase 5: Firestore-backed allow-list enforced in both `callTool` and `mintGeminiLiveToken` — signed-in but un-listed users get permission-denied (#7).
+- 2026-06-14T22:33Z [step] Bundle split: firebase/react/gemini vendor chunks via Vite manualChunks (#8).
+- 2026-06-18T04:30Z [step] Session UX burst: timezone-aware prompt + tool args/results in transcript (#9, #10), typing indicator during tool calls (#11), pretty-printed tool-result cards (#13), per-session emotional state with chill-out reset (#15), inline Recharts charts — line for `observations_in_range`, bar for `summarize_period` (#16, #17; `ask_data` chart research still open, #14).
+- 2026-06-18T04:18Z [friction] Interrupting the bot during an in-flight tool call confused it (#12); waited on the fix landing in VoiceCommon (voicecommon#10).
+- 2026-07-06T00:00Z [decision] Keep VoiceCommon's native server-side VAD; `manualTurnControl` explicitly rejected after reviewing it on the voicecommon 0.13.0 redeploy. Owner: "We don't want to use the manual VAD. It's not as natural sounding as the built in one." Weatherbot's snappy Q&A style wants the server VAD's eagerness — the opposite call from BiographyBot's long-form interviews.
+- 2026-07-10T17:09Z [milestone] Repo published to github.com/AndyFooBlah/weatherbot-app as a squashed initial commit (b2d8515): mobile-first voice frontend on Gemini Live via @andyfooblah/voice-common, tools fetched live from the weatherbot toolbox. Preceded by identifier scrub + security review (#18); voice-common/knowledge-common switched from file: symlinks to published npm packages (#19).
 - 2026-07-20T05:39Z [step] Prompt taught to record/recall events (5087782) — pairs with weatherbot's events table.
 - 2026-07-21T05:08Z [learning] The time-correctness saga, five owner-reported field failures in four days, each pinned later as a permanent eval case: "9pm tonight" recorded a day late → deterministic resolve tool (e43b5ec, fd055dc); AM/PM flips reading results back → *_local speech fields (930a126); off-by-one "yesterday" built from improvised windows → day windows + wider grammar (1c1064e); "9pm yesterday" labeled wrong relative day → (today)/(yesterday) markers (a8edf69). Governing lesson: the model gets NO date arithmetic, in either direction.
 - 2026-07-21T04:14Z [step] Hand-rolled timeResolver with 88 (later 100) tests (25d5e0d) — superseded ten hours later by nl2time; the tests seeded nl2time's consumer-side regression suite.
@@ -27,5 +40,6 @@ anchored to commits/issues where available, else day-accurate.
 - 2026-07-25T05:54Z [milestone] Corpus growth from REAL data: 269 utterances mined from 64 recorded session transcripts → 8 new cases → THREE production bugs found on first contact (2a63ab7): (1) backyard→Outdoor alias missing — bot falsely claimed "no data for the outside area"; (2) no ASR-noise handling — bot played along with garbled cross-talk; (3) the subtlest bug of the phase: "last week" meant THREE different windows (Sun–Sat in nl2time's en-US default, Mon–Sun per the prompt's own words, Mon-start date_trunc in QueryData SQL) → wrong day-counts. Fixed: prompt vocabulary + noise rules, weekStart:'mon' pinned, ask_data TIME RULE (embed resolved UTC bounds in query text). Corpus 34/34.
 - 2026-07-25T06:00Z [learning] Transcript mining beats synthetic case design: all three bugs above came from phrasings no grid would have produced ("office work order have the asset number" was literal cross-talk from a real session).
 - 2026-09-11T05:03Z [step] Eval fixture provenance recorded; dependency bumps; verbatim Apache-2.0 license shipped (6fddabd, 5eed499).
-- 2026-09-19T18:36Z [milestone] Live sessions moved to gemini-3.8-live, stable, same price (880732f). Gotcha captured in global memory: 3.8-live REJECTS thinkingConfig; a bare model-id swap closes the socket with 1007.
-- 2026-10-16T20:30Z [step] Journal created per new global journal policy; backfilled from git history, issues #20–#23, and session transcripts.
+- 2026-09-19T18:36Z [milestone] Live sessions moved to gemini-3.8-live, stable, same price (880732f), via voice-common 0.15.0's new liveModel/thinkingLevel options. Gotcha captured in global memory: 3.8-live REJECTS thinkingConfig; a bare model-id swap closes the socket with 1007 at setup (voice-common 0.14.x sent thinkingLevel MINIMAL unconditionally). src/agent/liveModel.ts added as the single source of truth for the model id; evals/driver.ts pointed at it — it had its own hardcoded copy claiming it "must match voicecommon's default", which stopped being true the moment the app opted in. Turn-taking deliberately left alone: native server VAD kept per the 2026-07-06 decision.
+- 2026-09-19T19:00Z [friction] The 3.8-live migration was deployed to Firebase and verified at bundle level only: corpus.test.ts and driverSmoke.test.ts are env-gated on TOOLBOX_URL and the eval toolbox was unreachable at the time. Open gap: no live-conversation eval has run against gemini-3.8-live — run the corpus (per the standing rule) before the next agent change, or sooner.
+- 2026-10-16T20:50Z [step] Journal created per the new global journal policy; backfilled from git history, issues, and session records. Two concurrent drafts merged (early-phase history + hardening-phase detail), plus the 2026-09-19 migration details contributed by the session that did that work.
