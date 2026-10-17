@@ -43,3 +43,16 @@ issue timestamps.
 - 2026-09-19T18:36Z [milestone] Live sessions moved to gemini-3.8-live, stable, same price (880732f), via voice-common 0.15.0's new liveModel/thinkingLevel options. Gotcha captured in global memory: 3.8-live REJECTS thinkingConfig; a bare model-id swap closes the socket with 1007 at setup (voice-common 0.14.x sent thinkingLevel MINIMAL unconditionally). src/agent/liveModel.ts added as the single source of truth for the model id; evals/driver.ts pointed at it — it had its own hardcoded copy claiming it "must match voicecommon's default", which stopped being true the moment the app opted in. Turn-taking deliberately left alone: native server VAD kept per the 2026-07-06 decision.
 - 2026-09-19T19:00Z [friction] The 3.8-live migration was deployed to Firebase and verified at bundle level only: corpus.test.ts and driverSmoke.test.ts are env-gated on TOOLBOX_URL and the eval toolbox was unreachable at the time. Open gap: no live-conversation eval has run against gemini-3.8-live — run the corpus (per the standing rule) before the next agent change, or sooner.
 - 2026-10-16T20:50Z [step] Journal created per the new global journal policy; backfilled from git history, issues, and session records. Two concurrent drafts merged (early-phase history + hardening-phase detail), plus the 2026-09-19 migration details contributed by the session that did that work.
+- 2026-09-19T18:36Z [friction] Addendum to the 18:36Z migration entry, from the session that made the change.
+  `evals/driver.ts` held its **own** hardcoded `WEATHERBOT_LIVE_MODEL`, with a comment saying it "must match
+  voicecommon's default". That stopped being true the moment the app passed an explicit `liveModel`, so left
+  alone the evals would have kept grading the old model while production ran the new one — a silent, and very
+  misleading, divergence. Both now come from `src/agent/liveModel.ts`. The general shape: when an app opts out
+  of a library default, every copy of that default becomes a lie.
+- 2026-09-19T18:40Z [incident] The migration here was verified at **bundle level only**. `evals/corpus.test.ts`
+  and `evals/driverSmoke.test.ts` are the only real Gemini Live coverage anywhere in this tree, and both are
+  `describe.skipIf` gated on `TOOLBOX_URL`; the eval toolbox was unreachable (Cloud Run is not enabled on the
+  `weatherbot` project), so neither ran. So no live conversation confirmed the new model here — the confidence
+  came from BiographyBot running the same voice-common path in production and from replaying the connect config
+  against the API directly. Worth closing: this repo has the best eval harness of the four voice apps and it
+  did not run for the one change most able to break a session.
