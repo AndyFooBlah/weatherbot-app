@@ -46,7 +46,7 @@
     "openevals": "^0.2.0",
     "tailwindcss": "^4.2.0",
     "typescript": "~5.8.2",
-    "vite": "^6.2.0",
+    "vite": "^6.4.5",
     "vitest": "^5.1.0"
   }
 }
