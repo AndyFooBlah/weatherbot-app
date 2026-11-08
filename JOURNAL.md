@@ -56,3 +56,4 @@ issue timestamps.
   came from BiographyBot running the same voice-common path in production and from replaying the connect config
   against the API directly. Worth closing: this repo has the best eval harness of the four voice apps and it
   did not run for the one change most able to break a session.
+- 2026-11-08T17:32Z [step] Turned on Dependabot alerts and security updates, and added a standard `.github/dependabot.yml`: weekly grouped minor/patch updates with a 5-day cooldown (14 days for majors); security updates open immediately. Part of the cross-repo dependency security program (AndyFooBlah/andy-private-docs#57).
