@@ -1,0 +1,170 @@
+# Production deploy (dependency program, AndyFooBlah/andy-private-docs#57).
+# Runs on every push to main and when ci.yml's deps-merge job dispatches it
+# after merging a Dependabot PR. Auth is keyless: GitHub's OIDC token is
+# exchanged through Workload Identity Federation for github-deploy@ (the
+# provider only accepts this repo on refs/heads/main). `npm run deploy:all`
+# from a laptop stays the manual fallback.
+#
+# Deploys what `npm run deploy:all` does (hosting, functions, Firestore rules
+# + indexes, Storage rules), not just the hosting-only `npm run deploy`, so a
+# functions dependency bump ships too. firebase-tools skips every function
+# whose source, .env and secrets hash is unchanged.
+#
+# Neither GEMINI_API_KEY nor TOOLBOX_URL reaches the test jobs: the live
+# evals in `npm test` would bill Gemini if both were set. TOOLBOX_URL is only
+# written into functions/.env in the deploy job.
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  PROJECT: weatherbot-app
+  SITE: weatherbot-app
+  WIF_PROVIDER: projects/320248374650/locations/global/workloadIdentityPools/github/providers/weatherbot-app-repo
+  DEPLOY_SA: github-deploy@weatherbot-app.iam.gserviceaccount.com
+  FIREBASE_TOOLS: firebase-tools@15.34.1
+
+jobs:
+  app:
+    name: App (type-check, lint, test, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run type-check
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  functions:
+    name: Cloud Functions (type-check)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: functions
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+
+  deploy:
+    needs: [app, functions]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      previous-version: ${{ steps.previous.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            functions/package-lock.json
+      - run: npm ci
+      - run: npm ci
+        working-directory: functions
+      - name: Recreate untracked config (.env.local, functions/.env)
+        env:
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ vars.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
+          TOOLBOX_URL: ${{ secrets.TOOLBOX_URL }}
+        run: |
+          set -euo pipefail
+          write() { local f=$1; shift; : > "$f"; for k in "$@"; do
+            [ -n "${!k}" ] || { echo "::error::$k is not set (Actions variable or secret)"; exit 1; }
+            printf '%s=%s\n' "$k" "${!k}" >> "$f"; done; }
+          write .env.local VITE_FIREBASE_API_KEY VITE_FIREBASE_AUTH_DOMAIN VITE_FIREBASE_PROJECT_ID VITE_FIREBASE_STORAGE_BUCKET VITE_FIREBASE_MESSAGING_SENDER_ID VITE_FIREBASE_APP_ID
+          write functions/.env TOOLBOX_URL
+      - id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOY_SA }}
+          token_format: access_token
+      - name: Record the live Hosting version (rollback target)
+        id: previous
+        env:
+          TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          set -euo pipefail
+          v=$(curl -fsS -H "Authorization: Bearer $TOKEN" \
+            "https://firebasehosting.googleapis.com/v1beta1/sites/$SITE/channels/live/releases?pageSize=1" \
+            | jq -r '.releases[0].version.name // empty')
+          [ -n "$v" ] || { echo "::error::could not read the live Hosting release"; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"; echo "Live before deploy: $v"
+      # firebase.json has no hosting predeploy here, so the deploy step builds
+      # first (vite build + bundle secret scan); the functions predeploy runs tsc.
+      - run: npm run build
+      - name: firebase deploy
+        run: >-
+          npx --yes "$FIREBASE_TOOLS" deploy --project "$PROJECT"
+          --only hosting,functions,firestore,storage --non-interactive
+
+  smoke:
+    needs: deploy
+    if: always() && (needs.deploy.result == 'success' || needs.deploy.result == 'failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: AndyFooBlah/uptime/smoke@main
+        with:
+          url: https://weatherbot-app.web.app/
+          ui-text: Continue with Google
+
+  rollback:
+    name: roll back Hosting
+    needs: [deploy, smoke]
+    if: always() && needs.smoke.result == 'failure' && needs.deploy.outputs.previous-version != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOY_SA }}
+          token_format: access_token
+          create_credentials_file: false
+      - name: Re-release the previous Hosting version
+        env:
+          TOKEN: ${{ steps.auth.outputs.access_token }}
+          PREVIOUS: ${{ needs.deploy.outputs.previous-version }}
+        run: |
+          set -euo pipefail
+          curl -fsS -X POST -H "Authorization: Bearer $TOKEN" \
+            "https://firebasehosting.googleapis.com/v1beta1/sites/$SITE/releases?versionName=$PREVIOUS" | jq -r '.name, .version.name'
+          echo "::error::Smoke test failed; Hosting rolled back to $PREVIOUS. Functions and rules are not rolled back."
+          exit 1
