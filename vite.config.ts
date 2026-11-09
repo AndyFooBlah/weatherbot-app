@@ -51,16 +51,13 @@ export default defineConfig({
         // Split the big vendor libs into their own cacheable chunks.
         // Browser can fetch them in parallel and re-uses cached copies
         // across deploys that only touch app code.
-        manualChunks: {
-          react: ['react', 'react-dom'],
-          firebase: [
-            'firebase/app',
-            'firebase/auth',
-            'firebase/firestore',
-            'firebase/functions',
-            'firebase/storage',
-          ],
-          gemini: ['@google/genai'],
+        // (Function form: Vite 8's Rolldown rejects the object form.)
+        manualChunks(id: string) {
+          if (!id.includes('node_modules')) return undefined;
+          if (/node_modules\/(react|react-dom)\//.test(id)) return 'react';
+          if (/node_modules\/(firebase|@firebase)\//.test(id)) return 'firebase';
+          if (id.includes('node_modules/@google/genai/')) return 'gemini';
+          return undefined;
         },
       },
     },
