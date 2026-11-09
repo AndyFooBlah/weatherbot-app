@@ -4,8 +4,22 @@
 import js from '@eslint/js';
 import globals from 'globals';
 import reactHooks from 'eslint-plugin-react-hooks';
-import tseslint from '@typescript-eslint/eslint-plugin';
-import tsparser from '@typescript-eslint/parser';
+import Module from 'node:module';
+
+// typescript-eslint cannot load TypeScript 7 (its JS API is gone; see
+// https://github.com/typescript-eslint/typescript-eslint/issues/10940).
+// Until it supports TS >=7.1, serve it the TS 6 API from @typescript/typescript6
+// while `tsc` itself stays on TS 7. Must run before the plugin is imported.
+const resolveFilename = Module._resolveFilename;
+Module._resolveFilename = function (request, parent, ...rest) {
+  if (request === 'typescript' && parent?.filename && /[\\/]node_modules[\\/](@typescript-eslint|ts-api-utils)[\\/]/.test(parent.filename)) {
+    request = '@typescript/typescript6';
+  }
+  return resolveFilename.call(this, request, parent, ...rest);
+};
+
+const { default: tseslint } = await import('@typescript-eslint/eslint-plugin');
+const { default: tsparser } = await import('@typescript-eslint/parser');
 
 export default [
   { ignores: ['dist', 'node_modules'] },
