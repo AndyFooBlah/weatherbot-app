@@ -41,7 +41,7 @@
     "@vitejs/plugin-react": "^5.0.0",
     "agentevals": "^0.0.7",
     "autoevals": "^0.4.1",
-    "eslint": "^9.39.4",
+    "eslint": "^10.14.0",
     "eslint-plugin-react-hooks": "^7.0.1",
     "globals": "^17.14.0",
     "google-auth-library": "^11.3.3",
