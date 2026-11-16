@@ -15,17 +15,7 @@ import {
   WEATHERBOT_SYSTEM_INSTRUCTION_PLACEHOLDER,
   buildWeatherbotInstruction,
 } from '../agent/instructionBuilder';
-import {
-  WEATHERBOT_LIVE_MODEL,
-  WEATHERBOT_LIVE_THINKING_LEVEL,
-} from '../agent/liveModel';
-
-/**
- * Pinned Gemini Live prebuilt voice. Aoede = warm, friendly, mid-pitch — fits
- * weatherbot's "calm helpful assistant" persona. Eventually expose as a user
- * preference; for now hardcoded so the bot sounds the same every session.
- */
-const VOICE_NAME = 'Aoede';
+import { WEATHERBOT_LIVE_SESSION_OPTIONS } from '../agent/liveConfig';
 
 export interface UseWeatherbotSessionOptions {
   userId: string;
@@ -88,16 +78,11 @@ export function useWeatherbotSession(
     systemInstruction: WEATHERBOT_SYSTEM_INSTRUCTION_PLACEHOLDER,
     tools: [],
     autoGreetText: AUTO_GREET_TEXT,
-    speechConfig: {
-      voiceConfig: { prebuiltVoiceConfig: { voiceName: VOICE_NAME } },
-    },
-    // gemini-3.8-live (stable) replaces gemini-3.1-flash-live-preview at the
-    // same price. It rejects thinkingConfig outright (WebSocket 1007), so
-    // thinkingLevel must be 'none' — VoiceCommon still defaults to MINIMAL
-    // for consumers that have not migrated. Turn-taking is deliberately
-    // untouched here: weatherbot keeps VoiceCommon's snappy server-side VAD.
-    liveModel: WEATHERBOT_LIVE_MODEL,
-    thinkingLevel: WEATHERBOT_LIVE_THINKING_LEVEL,
+    // Model, thinking level and voice: one definition in src/agent/, shared
+    // with the eval driver and the live conformance suite so all three send
+    // the same connect config. Turn-taking is deliberately not set here:
+    // weatherbot keeps VoiceCommon's snappy server-side VAD defaults.
+    ...WEATHERBOT_LIVE_SESSION_OPTIONS,
     onBotSpeaking: options.onBotSpeaking,
     onSessionEnd: options.onSessionEnd,
     onSessionEndRequest: async () => {

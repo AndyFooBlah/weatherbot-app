@@ -3,8 +3,9 @@
 //
 // Headless conversation driver: runs the PRODUCTION weatherbot brain —
 // same model, same (voice) system prompt, same tool declarations, same
-// dispatcher — over the Gemini Live API from Node, with text turns in
-// and output transcription + a structured tool trace out.
+// dispatcher, same Live connect config — over the Gemini Live API from
+// Node, with text turns in and output transcription + a structured tool
+// trace out.
 //
 // This is the "text-only mode" of the app: native-audio Live models only
 // emit AUDIO, so the text we grade is the output transcription — which
@@ -12,39 +13,76 @@
 // modality 'voice' on purpose: the harness evaluates the production
 // agent, not a text variant.
 //
-// Auth: GEMINI_API_KEY env var (Secret Manager / shell env — never
-// committed). No ephemeral-token broker needed server-side.
+// ONE CONNECT CONFIG. The `config` sent to `ai.live.connect` comes from
+// buildEvalLiveConnectConfig below: VoiceCommon's buildLiveConnectConfig
+// (the function its useSession hook calls) fed with
+// weatherbotLiveConnectParams (src/agent/liveConfig.ts), the same inputs the
+// SPA passes. tests/liveConfig.test.ts proves it equals the production
+// config, so an eval run exercises the setup message production sends:
+// voice, server-VAD turn-taking defaults, input and output transcription,
+// session resumption, context-window compression and the injected
+// `endSession` tool.
+//
+// DELIBERATE DIFFERENCES from a production session, each covered by
+// tests/evalDriver.test.ts:
+//   1. User turns are TEXT, sent with sendClientContent. Production streams
+//      microphone audio (and sends its opening cue as realtime text).
+//   2. No opening greeting cue (AUTO_GREET_TEXT) is sent; the script's first
+//      turn opens the conversation.
+//   3. Auth is the long-lived GEMINI_API_KEY from the environment (Secret
+//      Manager / shell env — never committed). Production connects with a
+//      single-use ephemeral token minted by the mintGeminiLiveToken
+//      callable. Both connect on the same API version (LIVE_API_VERSION).
+//   4. `endSession` is acknowledged ('ok', as the hook answers it) and
+//      recorded in the trace, but the driver keeps the socket open so the
+//      rest of a scripted conversation still runs. Production stops the
+//      session. `ConversationResult.endSessionRequested` reports it.
+//   5. A fresh session per conversation: no resumption handle is passed.
 
 import {
   FunctionDeclaration,
   GoogleGenAI,
+  LiveConnectConfig,
   LiveServerMessage,
-  Modality,
   Session,
 } from '@google/genai';
+// The Node-only entry: the same builder the hook uses, without loading React
+// or Firebase.
+import {
+  END_SESSION_TOOL_NAME,
+  LIVE_API_VERSION,
+  buildLiveConnectConfig,
+} from '@andyfooblah/voice-common/testing';
 import { createDispatcher } from '../src/agent/dispatcher';
 import {
   buildWeatherbotInstruction,
   captureNow,
   NowContext,
 } from '../src/agent/instructionBuilder';
+import { weatherbotLiveConnectParams } from '../src/agent/liveConfig';
 import { buildDeclarations } from '../src/agent/toolDeclarations';
 import { WEATHERBOT_LIVE_MODEL } from '../src/agent/liveModel';
 import type { ToolTransport } from '../src/agent/types';
 
 /**
  * Production Live model, re-exported from the agent core so the evals and the
- * SPA cannot drift.
- *
- * This used to be a local literal "matching voicecommon's default". That is no
- * longer the relationship: since VoiceCommon 0.15.0 the app passes `liveModel`
- * explicitly (src/hooks/useWeatherbotSession.ts), so production is pinned by
- * src/agent/liveModel.ts and VoiceCommon's own default is irrelevant here.
- *
- * Note the driver never sends `thinkingConfig` — gemini-3.8-live rejects it
- * with a WebSocket 1007 at setup. Do not add one.
+ * SPA cannot drift. Thinking is resolved by VoiceCommon's registry inside
+ * the builder; never add a `thinkingConfig` here by hand.
  */
 export { WEATHERBOT_LIVE_MODEL };
+
+/**
+ * The Live connect config for an eval conversation: exactly what the SPA's
+ * `useSession` call produces for the same instruction and tool declarations.
+ */
+export function buildEvalLiveConnectConfig(
+  systemInstruction: string,
+  declarations: FunctionDeclaration[],
+): LiveConnectConfig {
+  return buildLiveConnectConfig(
+    weatherbotLiveConnectParams({ systemInstruction, tools: declarations }),
+  );
+}
 
 export type TraceEvent =
   | { type: 'user'; text: string }
@@ -59,6 +97,9 @@ export interface ConversationResult {
   answers: string[];
   /** Tool calls in order (convenience view over events). */
   toolCalls: Array<{ name: string; args: Record<string, unknown> }>;
+  /** True when the model called `endSession` (production would have stopped
+   * the session there; the driver acknowledges and carries on). */
+  endSessionRequested: boolean;
 }
 
 export interface DriverOptions {
@@ -75,6 +116,8 @@ export interface DriverOptions {
   settleMs?: number;
   /** Log the live exchange to stderr. */
   debug?: boolean;
+  /** Max ms to wait for the server to accept the setup (default 30s). */
+  connectTimeoutMs?: number;
 }
 
 /**
@@ -118,7 +161,9 @@ export async function runConversation(
   let pendingTools = 0;
   let currentBotText = '';
   let closed = false;
+  let closeInfo = '';
   let fatal: Error | null = null;
+  let endSessionRequested = false;
 
   const flushBotText = () => {
     if (currentBotText.trim()) {
@@ -127,7 +172,12 @@ export async function runConversation(
     currentBotText = '';
   };
 
-  const ai = new GoogleGenAI({ apiKey });
+  // Same WebSocket API version as the hook, so the evals talk to the
+  // endpoint production talks to.
+  const ai = new GoogleGenAI({
+    apiKey,
+    httpOptions: { apiVersion: LIVE_API_VERSION },
+  });
   let session: Session;
 
   const onmessage = async (msg: LiveServerMessage) => {
@@ -147,6 +197,16 @@ export async function runConversation(
         events.push({ type: 'tool_call', name, args });
         toolCalls.push({ name, args });
         log(`tool_call ${name} ${JSON.stringify(args).slice(0, 200)}`);
+        if (name === END_SESSION_TOOL_NAME) {
+          // VoiceCommon's own tool, never dispatched to the app. Answer it
+          // as the hook does; unlike the hook, keep the session open.
+          endSessionRequested = true;
+          events.push({ type: 'tool_result', name, result: 'ok' });
+          session.sendToolResponse({
+            functionResponses: [{ id: fc.id, name, response: { result: 'ok' } }],
+          });
+          continue;
+        }
         pendingTools += 1;
         // Dispatch async; Live handles interleaving.
         (async () => {
@@ -176,26 +236,58 @@ export async function runConversation(
     }
   };
 
-  session = await ai.live.connect({
+  // ai.live.connect() resolves only after the server's setupComplete. When
+  // the server REJECTS the setup (a thinking level, voice or tool schema it
+  // does not accept) it closes the socket instead and that promise never
+  // settles, so race it against the close/error callbacks and a timeout.
+  const connectTimeoutMs = opts.connectTimeoutMs ?? 30_000;
+  let rejectSetup: (err: Error) => void = () => {};
+  const setupFailed = new Promise<never>((_, reject) => {
+    rejectSetup = reject;
+  });
+  const connectTimer = setTimeout(
+    () => rejectSetup(new Error(`live setup timed out after ${connectTimeoutMs}ms`)),
+    connectTimeoutMs,
+  );
+  let connected = false;
+  const connecting = ai.live.connect({
     model,
-    config: {
-      systemInstruction,
-      tools: [{ functionDeclarations: declarations as FunctionDeclaration[] }],
-      responseModalities: [Modality.AUDIO],
-      outputAudioTranscription: {},
-    },
+    config: buildEvalLiveConnectConfig(systemInstruction, declarations),
     callbacks: {
       onopen: () => log('connected'),
       onmessage,
       onerror: (e: { message?: string }) => {
         fatal = new Error(`live error: ${e.message ?? 'unknown'}`);
+        if (!connected) rejectSetup(fatal);
       },
       onclose: (e: { code?: number; reason?: string }) => {
         closed = true;
-        log(`closed code=${e.code} reason=${e.reason}`);
+        closeInfo = `code=${e.code} reason=${e.reason || '(none)'}`;
+        log(`closed ${closeInfo}`);
+        if (!connected) {
+          rejectSetup(new Error(`live setup rejected by the server: ${closeInfo} (model ${model})`));
+        }
       },
     },
   });
+  // If the setup is refused, `connecting` stays pending or rejects later; if
+  // it resolves after this function has given up, close that session.
+  let abandoned = false;
+  connecting.then(
+    (late) => {
+      if (abandoned) late.close();
+    },
+    () => undefined,
+  );
+  try {
+    session = await Promise.race([connecting, setupFailed]);
+    connected = true;
+  } catch (err) {
+    abandoned = true;
+    throw err;
+  } finally {
+    clearTimeout(connectTimer);
+  }
 
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -203,7 +295,7 @@ export async function runConversation(
     const deadline = Date.now() + turnTimeoutMs;
     for (;;) {
       if (fatal) throw fatal;
-      if (closed) throw new Error('live session closed mid-turn');
+      if (closed) throw new Error(`live session closed mid-turn (${closeInfo})`);
       const quiet = Date.now() - lastActivity;
       if (turnCompletes > 0 && pendingTools === 0 && quiet >= settleMs) return;
       if (Date.now() > deadline) {
@@ -247,5 +339,5 @@ export async function runConversation(
     }
   }
 
-  return { events, answers, toolCalls };
+  return { events, answers, toolCalls, endSessionRequested };
 }

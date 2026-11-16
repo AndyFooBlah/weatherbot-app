@@ -87,3 +87,19 @@ Deployed to `us-central1`. The function runtime SA (`<project-number>-compute@de
 - `roles/secretmanager.secretAccessor` on `GEMINI_API_KEY` (auto-granted by Firebase deploy)
 - `roles/run.invoker` on `weatherbot-toolbox` in the weatherbot backend project (cross-project, granted by hand)
 - The toolbox URL itself is configuration: `TOOLBOX_URL` in `functions/.env` (see `functions/.env.example`)
+
+## Testing
+
+See [TESTING.md](TESTING.md) for the full description.
+
+```bash
+npm test             # offline: no network, no key; runs in CI
+npm run test:live    # real Gemini Live API with the production config; needs GEMINI_API_KEY
+npm run eval:smoke   # one real conversation against a real Toolbox
+npm run eval:corpus  # the full answer-correctness corpus (about 9 minutes)
+```
+
+- The Gemini Live model is named in one file, `src/agent/liveModel.ts`. The app (`src/hooks/useWeatherbotSession.ts`) and the headless eval driver (`evals/driver.ts`) both build their Live connect config from `src/agent/liveConfig.ts` with VoiceCommon's `buildLiveConnectConfig`, so the evals exercise the config production sends. Offline tests enforce both.
+- `npm run test:live` runs VoiceCommon's live conformance kit against that production config: setup, the full tool declaration set, a text and a spoken turn under server VAD, a tool round trip through the app's dispatcher, barge-in, session resumption, the broker's token request, and latency. It skips itself without a key. A run costs an estimated $0.20 to $0.40.
+- `.github/workflows/live-contract.yml` runs the live suite weekly, but only if the repository secret `LIVE_TEST_GEMINI_API_KEY` exists. It is **off by default**; TESTING.md has the one-time step to turn it on.
+- Before changing the Live model, the prompt or the tools: `npm run test:live` and `npm run eval:corpus`, compared with the baselines in TESTING.md.

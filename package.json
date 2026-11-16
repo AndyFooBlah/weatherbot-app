@@ -15,11 +15,12 @@
     "deploy:all": "npm run build && firebase deploy",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:live": "vitest run --config vitest.live.config.ts",
     "eval:smoke": "vitest run evals/driverSmoke.test.ts",
     "eval:corpus": "vitest run evals/corpus.test.ts"
   },
   "dependencies": {
-    "@andyfooblah/voice-common": "^0.15.0",
+    "@andyfooblah/voice-common": "^0.16.0",
     "@google/genai": "^2.32.0",
     "firebase": "^12.9.0",
     "nl2time": "^0.3.3",

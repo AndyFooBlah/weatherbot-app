@@ -14,11 +14,10 @@ import { GoogleGenAI } from '@google/genai';
 import { HttpsError, CallableRequest } from 'firebase-functions/v2/https';
 import { logger } from 'firebase-functions';
 import { requireAllowed } from './auth';
-
-/** How long the minted token is valid before Gemini rejects it. */
-const TOKEN_TTL_MS = 30 * 60 * 1000; // 30 minutes
-/** How long after minting the token may be used to open a new session. */
-const NEW_SESSION_WINDOW_MS = 60 * 1000; // 1 minute
+import {
+  LIVE_TOKEN_API_VERSION,
+  buildLiveTokenRequestConfig,
+} from './liveTokenConfig';
 
 export interface MintGeminiLiveTokenResponse {
   /** Ephemeral token string — pass as the `apiKey` field on the Live connect. */
@@ -41,30 +40,25 @@ export function buildMintGeminiLiveTokenHandler(deps: {
       );
     }
 
-    const now = Date.now();
-    const expireTime = new Date(now + TOKEN_TTL_MS).toISOString();
-    const newSessionExpireTime = new Date(now + NEW_SESSION_WINDOW_MS).toISOString();
+    // The request itself (single use, 30-minute expiry, 1-minute window to
+    // open the session, no model constraint) is built in liveTokenConfig.ts,
+    // where the app's tests can read it.
+    const config = buildLiveTokenRequestConfig(Date.now());
 
-    // authTokens.create is exposed only on the v1alpha endpoint; the SDK
-    // defaults to v1, which returns 404 for this method. Pin v1alpha here.
+    // authTokens.create is not served on the SDK's default endpoint (v1,
+    // which returns 404 for this method), so the version is pinned.
     // https://ai.google.dev/gemini-api/docs/ephemeral-tokens
     const ai = new GoogleGenAI({
       apiKey,
-      httpOptions: { apiVersion: 'v1alpha' },
+      httpOptions: { apiVersion: LIVE_TOKEN_API_VERSION },
     });
 
     try {
-      const token = await ai.authTokens.create({
-        config: {
-          uses: 1,
-          expireTime,
-          newSessionExpireTime,
-        },
-      });
+      const token = await ai.authTokens.create({ config });
       if (!token?.name) {
         throw new Error('authTokens.create returned empty token');
       }
-      return { token: token.name, expireTime };
+      return { token: token.name, expireTime: config.expireTime };
     } catch (err) {
       logger.error('[mintGeminiLiveToken] Failed to mint token', err);
       throw new HttpsError('internal', 'Failed to mint Gemini Live token.');

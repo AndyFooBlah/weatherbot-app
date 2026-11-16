@@ -22,6 +22,8 @@ jobs:
   # `npm test` also collects evals/**/*.test.ts. The live ones (driverSmoke,
   # corpus) skip unless GEMINI_API_KEY and TOOLBOX_URL are both set, and
   # they bill Gemini when they run. CI never sets either: no model keys here.
+  # The live conformance suite (tests/live/*.live.test.ts, `npm run test:live`)
+  # is excluded from `npm test`; live-contract.yml runs it, off by default.
   app:
     name: App (type-check, lint, test, build)
     runs-on: ubuntu-latest

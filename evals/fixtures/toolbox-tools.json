@@ -1,0 +1,209 @@
+[
+  {
+    "name": "ask_data",
+    "description": "Open-ended natural-language query over the weather database via\nGoogle's Conversational Analytics API. Use only when the curated tools\nabove can't express the question (complex aggregations, multi-step\ncomparisons, \"find the day when…\", trend questions).\n\nThe model sees the narrow schema:\n  stations(mac_address, name, latitude, longitude, …)\n  sensors(sensor_id, station_id, awn_field_name, measurement_type,\n          physical_location, display_name, unit, sensor_kind,\n          reliable, is_active, retired_at, notes,\n          first_seen_at, last_seen_at)\n  sensor_readings(sensor_id, observed_at, value)\n  unmonitored_locations(station_id, location, notes)\n\nTypical pattern: JOIN sensor_readings → sensors on sensor_id, then\nfilter on sensors.physical_location / sensors.measurement_type.\n\n\nTool guidance:\n  Inputs:\n    1. query: A natural language formulation of a database query.\n  Outputs: (all optional)\n    1. disambiguation_question: Clarification questions or comments where the tool needs the users' input.\n    2. generated_query: The generated query for the user query.\n    3. intent_explanation: An explanation for why the tool produced `generated_query`.\n    4. query_result: The result of executing `generated_query`.\n    5. natural_language_answer: The natural language answer that summarizes the `query` and `query_result`.\n\nUsage guidance:\n  1. If `disambiguation_question` is produced, then solicit the needed inputs from the user and try the tool with a new `query` that has the needed clarification.\n  2. If `natural_language_answer` is produced, use `intent_explanation` and `generated_query` to see if you need to clarify any assumptions for the user.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "A natural language formulation of a database query."
+        }
+      },
+      "required": [
+        "query"
+      ]
+    }
+  },
+  {
+    "name": "latest_observation",
+    "description": "The most recent reading for every active sensor (or a filtered\nsubset). Use for \"right now\", \"current weather\", \"what's the\ntemperature in the garage\".\n\nReturns one row per matching sensor with display_name,\nphysical_location, measurement_type, unit, value, and the\nobserved_at timestamp of the most-recent reading. Inactive\nsensors are excluded.\n\nFilters are AND-combined and all optional:\n  - location:         \"Garage\", \"Bedroom\", \"Outdoor\", \"Pool\" (ILIKE)\n  - measurement_type: \"temperature\", \"humidity\", \"pressure\", etc.\n  - station_id:       MAC address (to scope to one station)\n\nFor a quick whole-house summary, call with no parameters and you\nget the latest of every active sensor across all stations.\n",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "type": "string",
+          "description": "Optional case-insensitive LIKE pattern on physical_location.\nExamples: \"Garage\", \"%pool%\", \"Outdoor\".\n"
+        },
+        "measurement_type": {
+          "type": "string",
+          "description": "Optional exact measurement_type filter. See list_sensors for\ncanonical values (temperature, humidity, wind_speed, …).\n"
+        },
+        "station_id": {
+          "type": "string",
+          "description": "Optional MAC address. Omit to query across stations."
+        }
+      },
+      "required": []
+    }
+  },
+  {
+    "name": "list_events",
+    "description": "List recorded events (things the user has logged), newest first,\nwithin an optional time window and/or category. Use to recall what\nhappened (\"what events did I record last week?\", \"when did I take the\npool cover off?\") or to correlate a change in the data with something\nphysical the user did.\n",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "category": {
+          "type": "string",
+          "description": "Optional exact category filter (pool, sensor, …)."
+        },
+        "from_ts": {
+          "type": "string",
+          "description": "Optional UTC ISO 8601 lower bound on the event time."
+        },
+        "row_limit": {
+          "type": "integer",
+          "description": "Max events to return. Default 50, capped at 500."
+        },
+        "to_ts": {
+          "type": "string",
+          "description": "Optional UTC ISO 8601 upper bound on the event time."
+        }
+      },
+      "required": []
+    }
+  },
+  {
+    "name": "list_sensors",
+    "description": "List sensors matching an optional location pattern and/or measurement\ntype. Returns one row per sensor with display_name, physical_location,\nmeasurement_type, unit, reliable, and notes — everything you need to\npick the right sensor and report its reading correctly.\n\nUse this when the user mentions a specific room (\"garage\", \"pool\",\n\"bedroom\") OR a specific kind of reading (\"temperature\", \"humidity\",\n\"wind\", \"rain\"). The result tells you which sensor_id(s) to read\nfrom sensor_readings (or use latest_observation / observations_in_range\nwith the location/measurement_type filters directly).\n\nPass \"%\" or omit location_query to see every sensor. Inactive\nsensors (e.g. retired pool sensor temp4f, kept for history) are\nexcluded by default — pass include_inactive=true to see them.\n",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "include_inactive": {
+          "type": "boolean",
+          "description": "Include retired sensors (e.g. the old pool sensor superseded\nby a new channel). Default false.\n"
+        },
+        "location_query": {
+          "type": "string",
+          "description": "Case-insensitive LIKE pattern on physical_location. Examples:\n\"Garage\", \"%pool%\", \"Bedroom\", \"%\". Omit to match all locations.\n"
+        },
+        "measurement_type": {
+          "type": "string",
+          "description": "Optional exact match on measurement_type. Canonical values:\ntemperature, humidity, dew_point, feels_like, wind_speed,\nwind_gust, wind_direction, pressure, rain_rate, rain_total,\nsolar_radiation, uv_index, pm25, aqi, battery.\n"
+        }
+      },
+      "required": []
+    }
+  },
+  {
+    "name": "list_stations",
+    "description": "List all weather stations on this account with their reporting windows.\nReturns MAC address, name, lat/lon, and first/last observation times.\nUse when the user asks which stations exist, or when they were active.\n",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "name": "list_unmonitored",
+    "description": "List physical locations the user has but that are NOT covered by an\nAWN sensor (e.g. the office). Call this if the user asks about a\nplace and list_sensors returns nothing for it — the answer might\njust be \"we don't measure that here.\"\n",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "name": "observations_in_range",
+    "description": "Time series of readings for a single sensor (or sensor selection)\nbetween two UTC timestamps. Returns one row per ~5-minute\nobservation per matching sensor. Use for time-series inspection\nor charting.\n\nYou SHOULD specify ONE of (otherwise you get every sensor — fine for\na few-hour scan, but a 24-hour unfiltered call is ~10,000 rows and\nwill be truncated):\n  - sensor_id   exact key from list_sensors (sharp + recommended)\n  - location + measurement_type (e.g. \"Pool\" + \"temperature\")\n\nFor a chart, you MUST narrow to a single sensor — pass\nlocation + measurement_type or sensor_id, otherwise multiple\nsensor series get mixed together and the chart is meaningless.\n\nOutput is hard-capped at 5,000 rows (most recent first within the\nwindow). Keep windows reasonable: a single sensor for a week is\n~2000 rows; whole-house can be much larger.\n",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "from_ts": {
+          "type": "string",
+          "description": "Inclusive lower bound (ISO 8601 UTC, e.g. 2025-06-01T00:00:00Z)."
+        },
+        "include_estimates": {
+          "type": "boolean",
+          "description": "Default false → only real measurements. Set true to also include\ngap-fill ESTIMATED readings (synthesized during sensor outages).\nEach returned row carries an is_estimated flag either way; if you\nsurface estimated points, say they're estimates.\n"
+        },
+        "location": {
+          "type": "string",
+          "description": "Optional case-insensitive LIKE pattern on physical_location.\nCombine with measurement_type to scope a query without knowing\nsensor_ids.\n"
+        },
+        "measurement_type": {
+          "type": "string",
+          "description": "Optional exact measurement_type filter (temperature, humidity,\nrain_rate, etc.).\n"
+        },
+        "row_limit": {
+          "type": "integer",
+          "description": "Hard cap on returned rows. Server clamps to [1, 5000]; default\n5000. Increase only when you actually need everything and have\nalready narrowed by sensor_id or location+measurement_type.\n"
+        },
+        "sensor_id": {
+          "type": "string",
+          "description": "Optional exact sensor key (from list_sensors), e.g.\n\"AA:BB:CC:DD:EE:FF:temp7f\".\n"
+        },
+        "to_ts": {
+          "type": "string",
+          "description": "Exclusive upper bound (ISO 8601 UTC)."
+        }
+      },
+      "required": [
+        "from_ts",
+        "to_ts"
+      ]
+    }
+  },
+  {
+    "name": "record_event",
+    "description": "Record a real-world event on the timeline — something the user did or\nthat happened that might explain or contextualize the sensor data\n(moved a sensor, reset the base station, took the pool cover off, a\npower outage, etc.). Use whenever the user says \"record that…\",\n\"log that…\", \"note that…\", \"make a note that…\".\n\nIMPORTANT: convert the user's local time-of-day into UTC before\ncalling. \"10am this morning\", \"2pm yesterday\", \"an hour ago\" all\nrefer to the user's local timezone (see the session time anchor);\npass occurred_at as a UTC ISO 8601 timestamp. If the user gives no\ntime (\"record that I reset the sensor\"), use the current time.\n",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "category": {
+          "type": "string",
+          "description": "Optional short tag to group events: \"pool\", \"sensor\",\n\"maintenance\", \"weather\", \"power\". Omit if unclear.\n"
+        },
+        "note": {
+          "type": "string",
+          "description": "The event description in the user's own words."
+        },
+        "occurred_at": {
+          "type": "string",
+          "description": "UTC ISO 8601 timestamp of WHEN THE EVENT HAPPENED (not now, unless\nthe user implies now). Convert the user's stated local time to UTC.\n"
+        }
+      },
+      "required": [
+        "occurred_at",
+        "note"
+      ]
+    }
+  },
+  {
+    "name": "summarize_period",
+    "description": "Aggregate stats (min / max / avg / count + total for cumulative\nmeasurements like rain) over a date range, grouped by sensor.\nUse for \"weather last week\", \"how hot did the pool get this month\",\n\"how much rain fell in June\".\n\nOptional filters (same as latest_observation) scope the aggregation:\n  - location           (\"Pool\", \"Outdoor\", ...)\n  - measurement_type   (\"temperature\", \"rain_total\", \"wind_gust\", ...)\n  - station_id\n\nReturns one row per matching sensor. For rain-style measurements\n(measurement_type ending in \"_total\"), the `total` column is the\nsum of values across the window; for everything else, treat the\ntotal as informational only.\n",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "from_ts": {
+          "type": "string",
+          "description": "Inclusive lower bound (ISO 8601 UTC)."
+        },
+        "include_estimates": {
+          "type": "boolean",
+          "description": "Default false → aggregate only real measurements. Set true to also\nfold in gap-fill ESTIMATED readings, which gives a less\ngap-distorted average over windows that span sensor outages. The\nresult always reports estimated_count; if it's > 0 and you used\nestimates, tell the user the average includes estimated fill.\n"
+        },
+        "location": {
+          "type": "string",
+          "description": "Optional case-insensitive LIKE pattern on physical_location."
+        },
+        "measurement_type": {
+          "type": "string",
+          "description": "Optional exact measurement_type filter."
+        },
+        "station_id": {
+          "type": "string",
+          "description": "Optional MAC address."
+        },
+        "to_ts": {
+          "type": "string",
+          "description": "Exclusive upper bound (ISO 8601 UTC)."
+        }
+      },
+      "required": [
+        "from_ts",
+        "to_ts"
+      ]
+    }
+  }
+]

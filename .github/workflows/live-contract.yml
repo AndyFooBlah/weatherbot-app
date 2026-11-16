@@ -1,0 +1,147 @@
+name: Live contract canary
+
+# Runs the LIVE suite (`npm run test:live`) against the real Gemini Live API
+# with weatherbot's production configuration: the model constant, the real
+# system instruction, the full tool declaration set, the pinned voice and
+# server-VAD turn-taking, plus the eval driver's path. See TESTING.md.
+#
+# This is a PAID API test and it is OFF by default: the job skips cleanly
+# (green, with a notice) unless the repository secret LIVE_TEST_GEMINI_API_KEY
+# exists. Turning it on is the owner's decision; TESTING.md, "Live contract
+# canary", has the one-time step. A run costs a few US cents.
+#
+# The Toolbox fixture check in the suite needs TOOLBOX_URL and an identity
+# that may invoke the private Toolbox. Neither is given to this workflow, so
+# that one test skips here; the Gemini checks use the committed tool list.
+#
+# On failure it opens one issue, or comments on the open one, assigned to the
+# owner. When a later run passes it says so on that issue and closes it.
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Mondays 14:41 UTC (early Monday morning, US Pacific).
+    - cron: '41 14 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-contract
+  cancel-in-progress: false
+
+jobs:
+  live:
+    name: Live conformance (production config)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Read-only: this job runs repository and dependency code with the key in
+    # scope, so it gets no write permission at all. Reporting is a separate job.
+    permissions:
+      contents: read
+    outputs:
+      enabled: ${{ steps.gate.outputs.enabled }}
+      outcome: ${{ steps.test.outcome }}
+      summary: ${{ steps.summary.outputs.summary }}
+    steps:
+      - name: Is the live key configured?
+        id: gate
+        env:
+          HAS_KEY: ${{ secrets.LIVE_TEST_GEMINI_API_KEY != '' }}
+        run: |
+          if [ "$HAS_KEY" = "true" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Live suite skipped::Secret LIVE_TEST_GEMINI_API_KEY is not set, so no live test ran. This is the default; see TESTING.md, Live contract canary."
+            echo "### Live suite skipped" >> "$GITHUB_STEP_SUMMARY"
+            echo "Secret \`LIVE_TEST_GEMINI_API_KEY\` is not set. Nothing was sent to the Gemini API." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.gate.outputs.enabled == 'true'
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/deps-toolchain
+        if: steps.gate.outputs.enabled == 'true'
+
+      # Install BEFORE the key is in scope, and without lifecycle scripts, so
+      # no dependency install hook ever runs alongside the secret.
+      - name: Install dependencies (no lifecycle scripts)
+        if: steps.gate.outputs.enabled == 'true'
+        run: npm ci --ignore-scripts
+
+      - name: Run the live suite
+        id: test
+        if: steps.gate.outputs.enabled == 'true'
+        continue-on-error: true
+        env:
+          GEMINI_API_KEY: ${{ secrets.LIVE_TEST_GEMINI_API_KEY }}
+          LIVE_RESULTS_FILE: ${{ runner.temp }}/live-results.jsonl
+        run: npm run test:live
+
+      # Results are already redacted by the kit; this step has no key in scope.
+      - name: Summarise
+        id: summary
+        if: steps.gate.outputs.enabled == 'true'
+        env:
+          LIVE_RESULTS_FILE: ${{ runner.temp }}/live-results.jsonl
+        run: |
+          node scripts/summarize-live-results.mjs "$LIVE_RESULTS_FILE" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo 'summary<<LIVE_SUMMARY_EOF'
+            node scripts/summarize-live-results.mjs "$LIVE_RESULTS_FILE" --failures-only | head -c 6000
+            echo
+            echo 'LIVE_SUMMARY_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Fail the job if the live suite failed
+        if: steps.gate.outputs.enabled == 'true' && steps.test.outcome != 'success'
+        run: |
+          echo "::error::The live suite failed. See the job summary."
+          exit 1
+
+  report:
+    name: Open or update the tracking issue
+    needs: live
+    # Runs no repository code: only the GitHub CLI, with issue access only.
+    if: always() && needs.live.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      OWNER: AndyFooBlah
+      TITLE: Live contract canary is failing
+      OUTCOME: ${{ needs.live.outputs.outcome }}
+      SUMMARY: ${{ needs.live.outputs.summary }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Open, update or close the issue
+        run: |
+          set -euo pipefail
+          existing=$(gh issue list --state open --search "\"$TITLE\" in:title" --json number,title \
+            --jq "[.[] | select(.title == \"$TITLE\")][0].number // empty")
+
+          if [ "$OUTCOME" = "success" ]; then
+            if [ -n "$existing" ]; then
+              gh issue comment "$existing" --body "The live suite passed again: $RUN_URL. Closing."
+              gh issue close "$existing"
+            fi
+            exit 0
+          fi
+
+          body=$(printf '%s\n\n%s\n\n%s\n\n%s\n' \
+            "The scheduled live suite (\`npm run test:live\`) failed against the real Gemini Live API." \
+            "Run: $RUN_URL" \
+            "A **FAIL** means the configuration weatherbot sends in production (or the eval driver's) is no longer accepted or no longer works: voice sessions are probably broken for users too. Start with the failing check's detail line, which carries the WebSocket close code and reason, then TESTING.md." \
+            "${SUMMARY:-No per-check results were recorded; the suite may have crashed before any check ran. See the run log.}")
+
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --title "$TITLE" --assignee "$OWNER" --label bug --body "$body"
+          fi
