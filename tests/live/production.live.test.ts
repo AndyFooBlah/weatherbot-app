@@ -10,8 +10,13 @@
 // for what each check proves, what a run costs and the latency baseline.
 
 import { expect, it } from 'vitest';
-import { GoogleGenAI } from '@google/genai';
-import { LIVE_API_VERSION, LiveTestSession } from '@andyfooblah/voice-common/testing';
+import { FunctionResponseScheduling, GoogleGenAI } from '@google/genai';
+import {
+  END_SESSION_TOOL_NAME,
+  LIVE_API_VERSION,
+  LiveTestSession,
+  loadSpeechFixture,
+} from '@andyfooblah/voice-common/testing';
 import { LIVE_TOKEN_API_VERSION, buildLiveTokenRequestConfig } from '../../functions/src/liveTokenConfig';
 import { AUTO_GREET_TEXT } from '../../src/agent/instructionBuilder';
 import {
@@ -143,6 +148,60 @@ describeLive('live: weatherbot production config', () => {
         metrics: { mintMs, audioSeconds, mintApiVersion: LIVE_TOKEN_API_VERSION, connectApiVersion: LIVE_API_VERSION },
       };
       recordCustom(label, 'ephemeral-token:broker-request', startedAt, outcome);
+      expect(outcome.status, outcome.detail).toBe('pass');
+    } finally {
+      await session.close();
+    }
+  });
+
+  it('goodbye: a spoken goodbye is answered aloud and ends the session through endSession', async () => {
+    // The app stops the session from VoiceCommon's onSessionEndRequest, which
+    // the hook raises for this tool call once the goodbye has played. This
+    // checks the half the Live API owns: with the production prompt and
+    // tools, a spoken goodbye makes the model speak and call endSession.
+    const startedAt = Date.now();
+    const { model, config } = targetFor(profile);
+    const session = await LiveTestSession.connect({ apiKey: LIVE_API_KEY, model, config });
+    try {
+      const since = session.mark();
+      const fixture = loadSpeechFixture('goodbye');
+      await session.sendAudioPcm16k(fixture.pcm, { label: 'goodbye' });
+      let cursor = since;
+      let ended = false;
+      const others: string[] = [];
+      const deadline = Date.now() + 30_000;
+      while (!ended && Date.now() < deadline) {
+        const event = await session
+          .waitForType('toolCall', deadline - Date.now(), { since: cursor, streamSilence: true })
+          .catch(() => undefined);
+        if (!event) break;
+        cursor = session.trace.indexOf(event) + 1;
+        for (const call of event.calls) {
+          if (call.name === END_SESSION_TOOL_NAME) {
+            ended = true;
+            // Answered as the hook answers it once the bot has spoken.
+            const spoke = session.audioBytes(since) > 0;
+            session.respondToTool(call, 'ok', spoke ? { scheduling: FunctionResponseScheduling.SILENT } : {});
+          } else {
+            others.push(call.name);
+            session.respondToTool(call, 'ok');
+          }
+        }
+      }
+      // Let the closing words finish arriving.
+      await session.waitForType('turnComplete', 5_000, { since, streamSilence: true }).catch(() => undefined);
+      const said = session.outputText(since).trim();
+      const audioSeconds = Number((session.audioBytes(since) / 48_000).toFixed(2));
+      const ok = ended && audioSeconds > 0;
+      const outcome = {
+        status: ok ? ('pass' as const) : ('fail' as const),
+        detail: ok
+          ? `heard "${session.inputText(since).trim().slice(0, 50)}", said "${said.slice(0, 50)}" and called endSession`
+          : `expected a spoken goodbye and an endSession call; endSession called: ${ended}; ` +
+            `other tools: ${others.join(', ') || 'none'}; said "${said.slice(0, 80)}"`,
+        metrics: { endSessionCalled: ended, audioSeconds, otherToolsCalled: others.join(',') },
+      };
+      recordCustom(label, 'goodbye-ends-session', startedAt, outcome);
       expect(outcome.status, outcome.detail).toBe('pass');
     } finally {
       await session.close();

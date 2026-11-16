@@ -211,12 +211,31 @@ describe('eval driver', () => {
 
     // Never forwarded to the Toolbox: it is VoiceCommon's own tool.
     expect(callTool).not.toHaveBeenCalled();
+    // The bot had already said goodbye, so the result is taken silently
+    // (VoiceCommon 0.16.1 answers the same way on this model).
     expect(session.sendToolResponse).toHaveBeenCalledWith({
-      functionResponses: [{ id: 'call_end', name: END_SESSION_TOOL_NAME, response: { result: 'ok' } }],
+      functionResponses: [
+        { id: 'call_end', name: END_SESSION_TOOL_NAME, response: { result: 'ok' }, scheduling: 'SILENT' },
+      ],
     });
     expect(result.endSessionRequested).toBe(true);
     expect(result.toolCalls.map((c) => c.name)).toEqual([END_SESSION_TOOL_NAME]);
     expect(result.answers).toEqual(['Bye!', 'Still here.']);
+  });
+
+  it('answers endSession without SILENT when the bot has not spoken yet in that turn', async () => {
+    const session = scriptSession({
+      onUserTurn: (_text, emit) => {
+        emit(toolCall('call_end', END_SESSION_TOOL_NAME));
+        emit(turnComplete());
+      },
+    });
+    const { transport } = stubTransport();
+    const result = await runConversation(['Stop'], { ...FAST, transport });
+    expect(session.sendToolResponse).toHaveBeenCalledWith({
+      functionResponses: [{ id: 'call_end', name: END_SESSION_TOOL_NAME, response: { result: 'ok' } }],
+    });
+    expect(result.endSessionRequested).toBe(true);
   });
 
   it('fails fast with the close code and reason when the server rejects the setup', async () => {

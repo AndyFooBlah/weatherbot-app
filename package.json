@@ -20,7 +20,7 @@
     "eval:corpus": "vitest run evals/corpus.test.ts"
   },
   "dependencies": {
-    "@andyfooblah/voice-common": "^0.16.0",
+    "@andyfooblah/voice-common": "^0.16.1",
     "@google/genai": "^2.32.0",
     "firebase": "^12.9.0",
     "nl2time": "^0.3.3",

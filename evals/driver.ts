@@ -33,14 +33,16 @@
 //      Manager / shell env — never committed). Production connects with a
 //      single-use ephemeral token minted by the mintGeminiLiveToken
 //      callable. Both connect on the same API version (LIVE_API_VERSION).
-//   4. `endSession` is acknowledged ('ok', as the hook answers it) and
-//      recorded in the trace, but the driver keeps the socket open so the
-//      rest of a scripted conversation still runs. Production stops the
-//      session. `ConversationResult.endSessionRequested` reports it.
+//   4. `endSession` is acknowledged as the hook answers it ('ok', and
+//      scheduling SILENT once the bot has said goodbye) and recorded in the
+//      trace, but the driver keeps the socket open so the rest of a scripted
+//      conversation still runs. Production stops the session once the
+//      goodbye has played. `ConversationResult.endSessionRequested` reports it.
 //   5. A fresh session per conversation: no resumption handle is passed.
 
 import {
   FunctionDeclaration,
+  FunctionResponseScheduling,
   GoogleGenAI,
   LiveConnectConfig,
   LiveServerMessage,
@@ -52,6 +54,7 @@ import {
   END_SESSION_TOOL_NAME,
   LIVE_API_VERSION,
   buildLiveConnectConfig,
+  getLiveModelInfo,
 } from '@andyfooblah/voice-common/testing';
 import { createDispatcher } from '../src/agent/dispatcher';
 import {
@@ -199,11 +202,24 @@ export async function runConversation(
         log(`tool_call ${name} ${JSON.stringify(args).slice(0, 200)}`);
         if (name === END_SESSION_TOOL_NAME) {
           // VoiceCommon's own tool, never dispatched to the app. Answer it
-          // as the hook does; unlike the hook, keep the session open.
+          // as the hook does (VoiceCommon 0.16.1): 'ok', and SILENT when the
+          // bot has already said its goodbye on a model whose function calls
+          // are asynchronous by default, so it does not speak again about
+          // the result. Unlike the hook, keep the session open.
           endSessionRequested = true;
+          const silent =
+            currentBotText.trim().length > 0 &&
+            getLiveModelInfo(model)?.toolExecution === 'non-blocking-default';
           events.push({ type: 'tool_result', name, result: 'ok' });
           session.sendToolResponse({
-            functionResponses: [{ id: fc.id, name, response: { result: 'ok' } }],
+            functionResponses: [
+              {
+                id: fc.id,
+                name,
+                response: { result: 'ok' },
+                ...(silent ? { scheduling: FunctionResponseScheduling.SILENT } : {}),
+              },
+            ],
           });
           continue;
         }

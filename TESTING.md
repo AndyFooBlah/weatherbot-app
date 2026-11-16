@@ -44,9 +44,9 @@ The eval driver differs from a production session in five deliberate ways,
 listed in the header of `evals/driver.ts` and each pinned by
 `tests/evalDriver.test.ts`: text turns sent with `sendClientContent` instead of
 microphone audio; no opening greeting cue; a long-lived API key instead of an
-ephemeral token (same API version); `endSession` is acknowledged and recorded
-but the socket stays open so a scripted conversation can finish; and no
-resumption handle.
+ephemeral token (same API version); `endSession` is acknowledged the way the
+hook acknowledges it and recorded, but the socket stays open so a scripted
+conversation can finish; and no resumption handle.
 
 ---
 
@@ -121,6 +121,7 @@ Aoede voice, and server VAD with default settings.
 | | context compression | `contextWindowCompression` is accepted and a turn runs. |
 | | model listed | `models.list` includes the model with `bidiGenerateContent`. |
 | | ephemeral token | A token minted with the broker's own request (`buildLiveTokenRequestConfig`, same API version) opens the production session and the greeting is spoken. |
+| | goodbye | A spoken goodbye under server VAD is answered aloud and the model calls `endSession`, which is what makes the app stop the session. The call is answered as the hook answers it (`scheduling: SILENT` once the bot has spoken). |
 | | latency | End of user speech to first bot audio, median of three spoken turns. Warn only; see below. |
 | `evalDriver.live.test.ts` | setup, tool declarations | The eval driver's exact connect config (`profile.connectConfig`) is accepted. |
 | | driver conversation | One real conversation through `runConversation` with a stub Toolbox: text turn in, `latest_observation` called, dispatcher result returned, spoken answer transcribed with the number in it. |
@@ -144,19 +145,20 @@ Measured from a laptop in California against the public API, clean synthetic
 speech. These are observations to compare against, not guarantees; the network
 between the test machine and the API is part of every number.
 
-| Measure (ms) | Run 1, 2026-11-15 | Run 2, 2026-11-15 |
-|---|---|---|
-| **Latency check: end of speech to first bot audio**, median of 3 (min to max) | **1034** (1000 to 1131) | **1110** (1008 to 1117) |
-| Audio-turn check: end of speech to first bot audio, one turn | 1137 | 1660 |
-| Opening cue sent to first audio of the greeting | 583 | 528 |
-| Tool question (text) to the `latest_observation` call | 868 | 902 |
-| Tool call to the next bot audio after the tool result (the result is returned at once) | 2687 | 2319 |
-| Barge-in: user starts speaking to `interrupted` | 211 | 223 |
-| Connect to `setupComplete` | 254 | 268 |
+| Measure (ms) | Run 1 (VoiceCommon 0.16.0) | Run 2 (0.16.0) | Run 3 (0.16.1) |
+|---|---|---|---|
+| **Latency check: end of speech to first bot audio**, median of 3 (min to max) | **1034** (1000 to 1131) | **1110** (1008 to 1117) | **1010** (1007 to 1115) |
+| Audio-turn check: end of speech to first bot audio, one turn | 1137 | 1660 | 1321 |
+| Opening cue sent to first audio of the greeting | 583 | 528 | 670 |
+| Tool question (text) to the `latest_observation` call | 868 | 902 | 1044 |
+| Tool call to the next bot audio after the tool result (the result is returned at once) | 2687 | 2319 | 2651 |
+| Barge-in: user starts speaking to `interrupted` | 211 | 223 | 234 |
+| Connect to `setupComplete` | 254 | 268 | 268 |
 
-Both runs: `gemini-3.8-live`, VoiceCommon 0.16.0, server VAD with default
-settings, 15 of 15 tests passed with no warnings and no retries. The spoken
-turn is the kit's fixture "What is the capital of France?", which weatherbot
+All three runs on 2026-11-15: `gemini-3.8-live`, server VAD with default
+settings, every test passed with no warnings and no retries (15 of 15 in runs
+1 and 2; 16 of 16 in run 3, which added the goodbye check). The spoken turn
+is the kit's fixture "What is the capital of France?", which weatherbot
 declines in one sentence, so the latency rows time turn-taking and first
 audio, not a tool call. The tool rows are the ones that include a tool: the
 bot speaks a short bridging phrase ("Let me check…") while the tool runs, so
@@ -165,7 +167,7 @@ follows two to three seconds after the call.
 
 ### What a run costs
 
-One run opens about 20 short sessions and takes about a minute and a half. The
+One run opens about 20 short sessions and takes under two minutes. The
 cost is mostly text input: the system instruction and the tool declarations
 are roughly 8,500 tokens and are billed on every turn. At the
 `gemini-3.8-live` prices checked on 2026-11-15 ($0.75 per million text input
@@ -210,16 +212,26 @@ full instruction and tool list on every turn, plus the judge calls).
 |---|---|---|---|---|
 | 2026-11-15 | `main` at `1cf366e`: VoiceCommon 0.15.0, driver with its old hand-built connect config | 1 of 1 | **27 of 34** | C02, C03, C09, C11, C20, C25, C26 |
 | 2026-11-15 | weatherbot-app#58: VoiceCommon 0.16.0, driver on the production connect config | 1 of 1 | **29 of 34** | C03, C09, C20, C25, C26 |
+| 2026-11-15 | VoiceCommon 0.16.1 (what is deployed), same driver config | 1 of 1 | **28 of 34** | C02, C03, C09, C20, C25, C26 |
 
-Both runs used the same eval snapshot, 2,736 hours (114 days) old, the same
-model and the same prompt. No case that passed before fails after. The five
-that fail in both are snapshot-age failures, not agent defects: C25 and C26
-need a day with estimated readings in the last 35 days; C03 and C09 look for
-events whose dates are now months back; C20 expects a no-data disclosure and
-the bot's "You didn't log any events last week" is not recognised as one. C02
-and C11 failed before and passed after; with one run each, treat that as
-model variance rather than an improvement. Re-seed the snapshot before
-reading anything more into the absolute numbers.
+All three runs used the same eval snapshot, 2,736 hours (114 days) old, the
+same model and the same prompt. No case that passed on `main` fails on either
+later run. The five that fail in every run are snapshot-age failures, not
+agent defects: C25 and C26 need a day with estimated readings in the last 35
+days; C03 and C09 look for events whose dates are now months back; C20
+expects a no-data disclosure and the bot's "You didn't log any events last
+week" is not recognised as one. C02 ("yesterday's outdoor high", a window
+with no data in a snapshot this old) failed, passed, then failed: the model
+sometimes gives up cleanly and sometimes keeps trying tools, including the
+forbidden `ask_data`. C11 failed once and passed twice. With one run per
+column, read those two as model variance on a stale snapshot, not as an
+effect of the change: the driver's connect config is identical in the second
+and third runs. Re-seed the snapshot before reading anything more into the
+absolute numbers.
+
+One thing to watch: in the third run the bot's answer to C20 contained the
+same sentence twice in a row. It happened once in 34 conversations and in
+neither earlier run.
 
 ---
 
@@ -280,7 +292,12 @@ like a connection fault.
 
 - **The browser audio pipeline.** The kit talks to the Live API from Node. The
   microphone, the AudioWorklet, playback, the recorder and the session UI are
-  VoiceCommon's and are covered by its tests and by using the app.
+  VoiceCommon's and are covered by its tests and by using the app. That
+  includes when the hook raises `onSessionEndRequest` (since VoiceCommon
+  0.16.1, after the goodbye has finished playing; the app calls `stopSession`
+  from that callback, so on earlier versions most of the goodbye was cut off).
+  VoiceCommon's replay tests cover that timing; no test in this repository
+  plays audio.
 - **The signed-in path end to end.** A real user signing in, the
   `mintGeminiLiveToken` callable checking the allow-list and returning a
   token, and the browser opening a session with it is not run by any automated
