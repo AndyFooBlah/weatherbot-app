@@ -64,6 +64,7 @@
     "@typescript-eslint/typescript-estree": {
       "minimatch": "^11.0.1"
     },
-    "@grpc/grpc-js": "^1.14.0"
+    "@grpc/grpc-js": "^1.14.0",
+    "minimatch": "^11.0.8"
   }
 }
