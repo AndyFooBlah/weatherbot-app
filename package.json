@@ -52,6 +52,9 @@
     "vitest": "^5.1.0"
   },
   "overrides": {
+    "@andyfooblah/voice-common": {
+      "@google/genai": "$@google/genai"
+    },
     "@typescript-eslint/eslint-plugin": {
       "typescript": "$typescript"
     },
