@@ -13,7 +13,7 @@
   "main": "lib/index.js",
   "dependencies": {
     "@google/genai": "^2.32.0",
-    "firebase-admin": "^14.5.0",
+    "firebase-admin": "^14.5.1",
     "firebase-functions": "^7.4.0",
     "google-auth-library": "^11.3.4"
   },
