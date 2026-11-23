@@ -29,7 +29,7 @@
     "recharts": "^3.10.1"
   },
   "devDependencies": {
-    "@eslint/js": "^9.0.0",
+    "@eslint/js": "^10.0.1",
     "@langchain/google-genai": "^2.3.6",
     "@tailwindcss/vite": "^4.3.5",
     "@types/node": "^22.14.0",
