@@ -98,6 +98,11 @@ export function resolveTimeTool(
     if (v.kind !== 'interval') {
       throw new Error(`"${when}" is a duration, not a point or range of time`);
     }
+    if (!v.start || !v.end) {
+      throw new Error(
+        `"${when}" is open-ended (no ${v.start ? 'end' : 'start'}) — give a bounded range such as "next week" or "July 1 to July 5"`,
+      );
+    }
     return {
       start_utc: isoZ(v.start),
       end_utc: isoZ(v.end),
